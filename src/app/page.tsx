@@ -1,11 +1,14 @@
-import {caller} from "@/trpc/server";
+"use client";
 
-const Page = async () =>{
-  const greeting = await caller.hello({text: "Aditya"});
+import { Button } from "@/components/ui/button";
+import { Toaster } from "sonner";
 
+const Page = () =>{
+  
   return (
     <div>
-      {JSON.stringify(greeting)}
+      <Button></Button>
+      Test
     </div>
   );
 }

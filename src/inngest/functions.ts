@@ -1,10 +1,17 @@
 import { inngest } from "./client";
 import { anthropic, createAgent } from "@inngest/agent-kit";
+import {Sandbox} from "@e2b/code-interpreter"
+import { getSandboxId } from "./utils";
 
 export const helloWorld = inngest.createFunction(
   { id: "hello-world" },
   { event: "test/hello.world" },
   async ({ event, step }) => {
+
+    const sandboxId = await step.run("get-sandbox-id", async () => {
+      const sandbox = await Sandbox.create("novacraft-nextjs-test")
+      return sandbox.sandboxId
+    })
 
     // Create a new agent with a system prompt (you can add optional tools, too)
     const codeAgent = createAgent({
@@ -17,7 +24,13 @@ export const helloWorld = inngest.createFunction(
       `Summarize the following text: ${event.data.value}`,
     );
 
-    console.log(output);
-    return {output}
+    const sandboxUrl = await step.run("get-sandbox-url", async () => {
+      const sandbox = await getSandboxId(sandboxId);
+      const host= sandbox.getHost(3000);
+
+      return `https://${host}`;
+    })
+
+    return {output, sandboxUrl}
   },
 );

@@ -4,10 +4,11 @@ import {Sandbox} from "@e2b/code-interpreter"
 import { getSandbox, lastAssistantTextMessageContent } from "./utils";
 import { z } from "zod";
 import { PROMPT } from "@/prompt";
+import prisma from "@/lib/prisma";
 
-export const helloWorld = inngest.createFunction(
-  { id: "hello-world" },
-  { event: "test/hello.world" },
+export const codeAgent = inngest.createFunction(
+  { id: "code-agent" },
+  { event: "code-agent/run" },
   async ({ event, step }) => {
 
     const sandboxId = await step.run("get-sandbox-id", async () => {
@@ -145,6 +146,23 @@ export const helloWorld = inngest.createFunction(
       const host= sandbox.getHost(3000);
 
       return `https://${host}`;
+    })
+
+    await step?.run("save-result", async () => {
+      return await prisma.message.create({
+        data: {
+          content: result.state.data.summary,
+          role: "ASSISTANT",
+          type: "RESULT",
+          fragment: {
+             create: {
+              sandboxUrl: sandboxUrl,
+              title: "Fragmemt",
+              files: result.state.data.files,
+            },
+          },
+        }
+      })
     })
 
     return {

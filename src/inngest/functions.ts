@@ -1,5 +1,5 @@
 import { inngest } from "./client";
-import { anthropic, createAgent, createNetwork, createTool, Tool } from "@inngest/agent-kit";
+import { anthropic, createAgent, createNetwork, createTool, openai, Tool } from "@inngest/agent-kit";
 import {Sandbox} from "@e2b/code-interpreter"
 import { getSandbox, lastAssistantTextMessageContent } from "./utils";
 import { z } from "zod";
@@ -25,7 +25,7 @@ export const codeAgentFunction = inngest.createFunction(
       name: "codeAgent",
       description: "You are an expert next.js developer",
       system: PROMPT,
-      model: anthropic({ model: "claude-3-5-sonnet-latest", defaultParameters: { max_tokens: 3000, temperature: 0.1 } }),
+      model: openai({ model: "gpt-4" }),
       tools: [
         createTool({
           name: "terminal",
@@ -103,7 +103,7 @@ export const codeAgentFunction = inngest.createFunction(
             return await step?.run("readFiles", async () => {
               try {
                 const sandbox = await getSandbox(sandboxId);
-                const contents = [];
+                const contents: Array<{path: string; content: string}> = [];
 
                 for(const file of files) {
                   const content = await sandbox.files.read(file);
@@ -159,6 +159,7 @@ export const codeAgentFunction = inngest.createFunction(
       if (isError) {
         return await prisma.message.create({
           data: {
+            projectId: event.data.projectId,
             content: "Something went wrong. Please try again",
             role: "ASSISTANT",
             type: "ERROR"
@@ -167,6 +168,7 @@ export const codeAgentFunction = inngest.createFunction(
       }
       return await prisma.message.create({
         data: {
+          projectId: event.data.projectId,
           content: result.state.data.summary,
           role: "ASSISTANT",
           type: "RESULT",

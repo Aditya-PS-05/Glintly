@@ -2,7 +2,7 @@
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { MessagesContainer } from "../components/messages-container";
-import { act, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
 import { Fragment } from "@/generated/prisma";
 import ProjectHeader from "../components/project-header";
 import FragmentWeb from "../components/fragment-web";
@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeIcon, CrownIcon, EyeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { CodeView } from "@/components/code-view";
 import { FileExplorer } from "@/components/file-explorer";
 
 interface Props {
@@ -64,7 +63,7 @@ export const ProjectView =({projectId}: Props) => {
                                 </TabsTrigger>
                             </TabsList>
                             <div className="ml-auto flex-items-center gap-x-2">
-                                <Button asChild size="sm" value="default">
+                                <Button asChild size="sm" value="default" variant="tertiary">
                                     <Link href="pricing">
                                         <CrownIcon /> Upgrade
                                     </Link>

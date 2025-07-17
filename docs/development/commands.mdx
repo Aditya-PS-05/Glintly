@@ -1,0 +1,657 @@
+---
+title: 'Development Commands'
+description: 'Essential commands for developing with NovaCraft'
+---
+
+## Package Manager Commands
+
+NovaCraft uses **pnpm** as the preferred package manager for faster installs and better dependency management.
+
+### Installation Commands
+
+<CodeGroup>
+
+```bash Install Dependencies
+# Install all dependencies
+pnpm install
+
+# Install a new dependency
+pnpm add package-name
+
+# Install a dev dependency
+pnpm add -D package-name
+
+# Install global package
+pnpm add -g package-name
+```
+
+```bash Update Dependencies
+# Update all dependencies
+pnpm update
+
+# Update specific package
+pnpm update package-name
+
+# Check outdated packages
+pnpm outdated
+```
+
+</CodeGroup>
+
+## Development Server Commands
+
+### Next.js Development
+
+<CodeGroup>
+
+```bash Development Server
+# Start development server with Turbopack
+pnpm run dev
+
+# Start on different port
+pnpm run dev -- --port 3001
+
+# Enable experimental features
+pnpm run dev -- --experimental-https
+```
+
+```bash Production Build
+# Build for production
+pnpm run build
+
+# Start production server
+pnpm run start
+
+# Build and start
+pnpm run build && pnpm run start
+```
+
+</CodeGroup>
+
+### Background Services
+
+<CodeGroup>
+
+```bash Inngest Development
+# Start Inngest development server
+pnpm dlx inngest-cli@latest dev
+
+# Start with verbose logging
+pnpm dlx inngest-cli@latest dev --verbose
+
+# Start on different port
+pnpm dlx inngest-cli@latest dev --port 8081
+```
+
+</CodeGroup>
+
+## Database Commands
+
+### Prisma Operations
+
+<CodeGroup>
+
+```bash Schema Management
+# Apply migrations in development
+pnpx prisma migrate dev
+
+# Apply migrations in production
+pnpx prisma migrate deploy
+
+# Reset database (destructive)
+pnpx prisma migrate reset
+
+# Generate Prisma client
+pnpx prisma generate
+```
+
+```bash Database Utilities
+# Open Prisma Studio
+pnpx prisma studio
+
+# Format schema file
+pnpx prisma format
+
+# Validate schema
+pnpx prisma validate
+
+# View migration status
+pnpx prisma migrate status
+```
+
+</CodeGroup>
+
+### Direct Database Access
+
+<CodeGroup>
+
+```bash PostgreSQL Commands
+# Connect to database
+psql -h localhost -U username -d novacraft
+
+# Create database
+createdb novacraft
+
+# Drop database (careful!)
+dropdb novacraft
+
+# Backup database
+pg_dump novacraft > backup.sql
+
+# Restore database
+psql novacraft < backup.sql
+```
+
+</CodeGroup>
+
+## E2B Sandbox Commands
+
+### Template Management
+
+<CodeGroup>
+
+```bash Template Operations
+# Build sandbox template
+e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+
+# List available templates
+e2b template list
+
+# Delete template
+e2b template delete novacraft-nextjs-test
+
+# Update template
+e2b template update novacraft-nextjs-test
+```
+
+</CodeGroup>
+
+### Sandbox Operations
+
+<CodeGroup>
+
+```bash Sandbox Management
+# List active sandboxes
+e2b sandbox list
+
+# Create new sandbox
+e2b sandbox create novacraft-nextjs-test
+
+# Connect to sandbox
+e2b sandbox connect <sandbox-id>
+
+# View sandbox logs
+e2b sandbox logs <sandbox-id>
+
+# Delete sandbox
+e2b sandbox delete <sandbox-id>
+
+# Delete all sandboxes
+e2b sandbox delete --all
+```
+
+</CodeGroup>
+
+### Authentication
+
+<CodeGroup>
+
+```bash E2B Authentication
+# Login to E2B
+e2b auth login
+
+# Check current user
+e2b auth whoami
+
+# Logout
+e2b auth logout
+
+# Set API key
+e2b auth set-key <api-key>
+```
+
+</CodeGroup>
+
+## Code Quality Commands
+
+### Linting and Formatting
+
+<CodeGroup>
+
+```bash ESLint
+# Run linter
+pnpm run lint
+
+# Fix linting issues
+pnpm run lint -- --fix
+
+# Lint specific files
+pnpm run lint -- src/components/**/*.tsx
+```
+
+```bash Prettier (if configured)
+# Format all files
+pnpm run format
+
+# Check formatting
+pnpm run format:check
+
+# Format specific files
+prettier --write src/components/**/*.tsx
+```
+
+</CodeGroup>
+
+### Type Checking
+
+<CodeGroup>
+
+```bash TypeScript
+# Type check all files
+pnpm run type-check
+
+# Watch mode type checking
+pnpm run type-check -- --watch
+
+# Build without emitting files
+npx tsc --noEmit
+```
+
+</CodeGroup>
+
+## Testing Commands
+
+### Unit and Integration Tests
+
+<CodeGroup>
+
+```bash Vitest
+# Run all tests
+pnpm run test
+
+# Run tests in watch mode
+pnpm run test:watch
+
+# Run tests with coverage
+pnpm run test:coverage
+
+# Run specific test file
+pnpm run test -- src/components/Button.test.tsx
+
+# Run tests matching pattern
+pnpm run test -- --grep "should render"
+```
+
+</CodeGroup>
+
+### E2E Testing
+
+<CodeGroup>
+
+```bash Playwright (if configured)
+# Run E2E tests
+pnpm run e2e
+
+# Run E2E tests in headed mode
+pnpm run e2e -- --headed
+
+# Run specific E2E test
+pnpm run e2e -- tests/auth.spec.ts
+```
+
+</CodeGroup>
+
+## Git and Version Control
+
+### Common Git Commands
+
+<CodeGroup>
+
+```bash Basic Git Operations
+# Check status
+git status
+
+# Add all changes
+git add .
+
+# Commit changes
+git commit -m "feat: add new feature"
+
+# Push changes
+git push origin main
+
+# Pull latest changes
+git pull origin main
+```
+
+```bash Branch Management
+# Create new branch
+git checkout -b feature/new-feature
+
+# Switch branches
+git checkout main
+
+# Merge branch
+git merge feature/new-feature
+
+# Delete branch
+git branch -d feature/new-feature
+```
+
+</CodeGroup>
+
+### Conventional Commits
+
+<CodeGroup>
+
+```bash Commit Types
+# Feature commits
+git commit -m "feat: add user authentication"
+
+# Bug fixes
+git commit -m "fix: resolve database connection issue"
+
+# Documentation
+git commit -m "docs: update API documentation"
+
+# Refactoring
+git commit -m "refactor: improve code structure"
+
+# Performance
+git commit -m "perf: optimize database queries"
+
+# Testing
+git commit -m "test: add unit tests for components"
+```
+
+</CodeGroup>
+
+## Docker Commands
+
+### Development with Docker
+
+<CodeGroup>
+
+```bash Docker Development
+# Build development image
+docker build -t novacraft-dev -f Dockerfile.dev .
+
+# Run development container
+docker run -p 3000:3000 -v $(pwd):/app novacraft-dev
+
+# Use Docker Compose
+docker-compose -f docker-compose.dev.yml up
+
+# Stop containers
+docker-compose -f docker-compose.dev.yml down
+```
+
+```bash Docker Utilities
+# View running containers
+docker ps
+
+# View logs
+docker logs <container-id>
+
+# Execute command in container
+docker exec -it <container-id> /bin/sh
+
+# Clean up
+docker system prune -f
+```
+
+</CodeGroup>
+
+## Monitoring and Debugging
+
+### Application Monitoring
+
+<CodeGroup>
+
+```bash Health Checks
+# Check application health
+curl http://localhost:3000/api/health
+
+# Check database connection
+curl http://localhost:3000/api/health/db
+
+# Check external services
+curl http://localhost:3000/api/health/services
+```
+
+</CodeGroup>
+
+### Log Analysis
+
+<CodeGroup>
+
+```bash Log Commands
+# View application logs
+pnpm run logs
+
+# View Inngest logs
+pnpm dlx inngest-cli@latest logs
+
+# View database logs (PostgreSQL)
+tail -f /var/log/postgresql/postgresql.log
+
+# View E2B sandbox logs
+e2b sandbox logs <sandbox-id>
+```
+
+</CodeGroup>
+
+## Custom Scripts
+
+### Package.json Scripts
+
+<CodeGroup>
+
+```json package.json
+{
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
+    "inngest:dev": "inngest-cli dev",
+    "e2b:build": "e2b template build --name novacraft-nextjs-test --cmd '/compile_page.sh'",
+    "clean": "rm -rf .next && rm -rf node_modules/.cache",
+    "fresh": "pnpm clean && pnpm install"
+  }
+}
+```
+
+</CodeGroup>
+
+### Custom Development Scripts
+
+<CodeGroup>
+
+```bash scripts/dev.sh
+#!/bin/bash
+
+# Start all development services
+echo "Starting NovaCraft development environment..."
+
+# Start PostgreSQL if not running
+if ! pgrep -x "postgres" > /dev/null; then
+    echo "Starting PostgreSQL..."
+    pg_ctl start
+fi
+
+# Start Inngest in background
+echo "Starting Inngest..."
+pnpm dlx inngest-cli@latest dev &
+
+# Start Next.js development server
+echo "Starting Next.js..."
+pnpm run dev
+```
+
+```bash scripts/setup.sh
+#!/bin/bash
+
+# Complete development setup
+echo "Setting up NovaCraft development environment..."
+
+# Install dependencies
+pnpm install
+
+# Setup database
+pnpx prisma migrate dev
+pnpx prisma generate
+
+# Build E2B template
+e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+
+echo "Setup complete! Run 'pnpm run dev' to start development."
+```
+
+</CodeGroup>
+
+## Environment-Specific Commands
+
+### Development Environment
+
+<CodeGroup>
+
+```bash Development
+# Start development with debug mode
+DEBUG=true pnpm run dev
+
+# Start with specific database
+DATABASE_URL="postgresql://dev:password@localhost:5432/novacraft_dev" pnpm run dev
+
+# Start with mock services
+USE_MOCK_SERVICES=true pnpm run dev
+```
+
+</CodeGroup>
+
+### Production Environment
+
+<CodeGroup>
+
+```bash Production
+# Build for production
+NODE_ENV=production pnpm run build
+
+# Start production server
+NODE_ENV=production pnpm run start
+
+# Run production migrations
+NODE_ENV=production pnpx prisma migrate deploy
+```
+
+</CodeGroup>
+
+## Troubleshooting Commands
+
+### Common Issues
+
+<CodeGroup>
+
+```bash Port Conflicts
+# Kill process on port 3000
+lsof -ti:3000 | xargs kill -9
+
+# Find process using port
+lsof -i:3000
+
+# Use different port
+pnpm run dev -- --port 3001
+```
+
+```bash Cache Issues
+# Clear Next.js cache
+rm -rf .next
+
+# Clear pnpm cache
+pnpm store prune
+
+# Clear Prisma cache
+pnpx prisma generate
+```
+
+```bash Database Issues
+# Reset database completely
+pnpx prisma migrate reset --force
+
+# Check database connection
+pnpx prisma db pull
+
+# Sync database schema
+pnpx prisma db push
+```
+
+</CodeGroup>
+
+## Quick Reference
+
+### Most Used Commands
+
+<CodeGroup>
+
+```bash Daily Development
+# Start development
+pnpm run dev
+
+# In another terminal
+pnpm dlx inngest-cli@latest dev
+
+# Database operations
+pnpx prisma studio
+pnpx prisma migrate dev
+
+# Code quality
+pnpm run lint
+pnpm run type-check
+
+# Testing
+pnpm run test
+```
+
+</CodeGroup>
+
+### Emergency Commands
+
+<CodeGroup>
+
+```bash Emergency Reset
+# Nuclear option - reset everything
+pnpm run clean
+pnpx prisma migrate reset --force
+pnpm install
+pnpx prisma generate
+e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Testing Guide"
+    icon="test-tube"
+    href="/development/testing"
+  >
+    Learn about testing strategies and tools
+  </Card>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/development/deployment"
+  >
+    Deploy your application to production
+  </Card>
+</CardGroup>

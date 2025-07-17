@@ -1,0 +1,667 @@
+---
+title: 'Development Setup'
+description: 'Complete guide to setting up your development environment'
+---
+
+## Prerequisites
+
+Before setting up the development environment, ensure you have the following installed:
+
+### Required Software
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="nodejs">
+    Version 18.0.0 or higher with npm/pnpm
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Version 13 or higher for the database
+  </Card>
+  <Card title="Git" icon="git">
+    For version control and repository management
+  </Card>
+  <Card title="VS Code" icon="code">
+    Recommended IDE with TypeScript support
+  </Card>
+</CardGroup>
+
+### Required Accounts
+
+<CardGroup cols={2}>
+  <Card title="OpenAI" icon="brain">
+    API key for GPT-4 access
+  </Card>
+  <Card title="E2B" icon="cube">
+    Account for code execution sandboxes
+  </Card>
+  <Card title="Inngest" icon="gear">
+    Account for background job processing
+  </Card>
+  <Card title="GitHub" icon="github">
+    For code repository access
+  </Card>
+</CardGroup>
+
+## Initial Setup
+
+### 1. Clone the Repository
+
+<CodeGroup>
+
+```bash HTTPS
+git clone https://github.com/your-username/novacraft.git
+cd novacraft
+```
+
+```bash SSH
+git clone git@github.com:your-username/novacraft.git
+cd novacraft
+```
+
+</CodeGroup>
+
+### 2. Install Dependencies
+
+<CodeGroup>
+
+```bash pnpm (Recommended)
+pnpm install
+```
+
+```bash npm
+npm install
+```
+
+```bash yarn
+yarn install
+```
+
+</CodeGroup>
+
+### 3. Environment Configuration
+
+Create your environment file:
+
+<CodeGroup>
+
+```bash Terminal
+cp .env.example .env.local
+```
+
+</CodeGroup>
+
+Configure your `.env.local` file:
+
+<CodeGroup>
+
+```env .env.local
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/novacraft"
+
+# OpenAI
+OPENAI_API_KEY="sk-your-openai-api-key"
+
+# E2B
+E2B_API_KEY="your-e2b-api-key"
+
+# Inngest
+INNGEST_EVENT_KEY="your-inngest-event-key"
+INNGEST_SIGNING_KEY="your-inngest-signing-key"
+
+# Next.js
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret"
+
+# Optional: For development
+NODE_ENV="development"
+```
+
+</CodeGroup>
+
+## Database Setup
+
+### 1. Create Database
+
+<CodeGroup>
+
+```bash Local PostgreSQL
+createdb novacraft
+```
+
+```bash Docker
+docker run --name novacraft-db \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=novacraft \
+  -p 5432:5432 \
+  -d postgres:15
+```
+
+</CodeGroup>
+
+### 2. Run Migrations
+
+<CodeGroup>
+
+```bash Terminal
+pnpx prisma migrate dev
+```
+
+</CodeGroup>
+
+### 3. Generate Prisma Client
+
+<CodeGroup>
+
+```bash Terminal
+pnpx prisma generate
+```
+
+</CodeGroup>
+
+### 4. Seed Database (Optional)
+
+<CodeGroup>
+
+```bash Terminal
+pnpx prisma db seed
+```
+
+</CodeGroup>
+
+## External Services Setup
+
+### OpenAI Configuration
+
+1. Visit [OpenAI Platform](https://platform.openai.com)
+2. Create an account or sign in
+3. Navigate to API Keys section
+4. Generate a new API key
+5. Ensure GPT-4 access is enabled
+6. Add the key to your `.env.local` file
+
+### E2B Configuration
+
+1. Sign up at [E2B](https://e2b.dev)
+2. Create an API key from the dashboard
+3. Install the E2B CLI:
+
+<CodeGroup>
+
+```bash Terminal
+npm install -g @e2b/cli
+```
+
+</CodeGroup>
+
+4. Authenticate with E2B:
+
+<CodeGroup>
+
+```bash Terminal
+e2b auth login
+```
+
+</CodeGroup>
+
+5. Build the sandbox template:
+
+<CodeGroup>
+
+```bash Terminal
+e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+```
+
+</CodeGroup>
+
+### Inngest Configuration
+
+1. Sign up at [Inngest](https://inngest.com)
+2. Create a new app
+3. Get your event key and signing key
+4. Add them to your `.env.local` file
+
+## Development Workflow
+
+### 1. Start Development Servers
+
+You'll need to run multiple servers for full functionality:
+
+<CodeGroup>
+
+```bash Terminal 1 (Next.js)
+pnpm run dev
+```
+
+```bash Terminal 2 (Inngest)
+pnpm dlx inngest-cli@latest dev
+```
+
+```bash Terminal 3 (Database Studio - Optional)
+pnpx prisma studio
+```
+
+</CodeGroup>
+
+### 2. Verify Setup
+
+1. Visit [http://localhost:3000](http://localhost:3000)
+2. Create a new project
+3. Send a test message
+4. Verify AI processing works
+5. Check sandbox creation
+
+## VS Code Configuration
+
+### Recommended Extensions
+
+<CodeGroup>
+
+```json .vscode/extensions.json
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "prisma.prisma",
+    "ms-vscode.vscode-typescript-next",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-eslint",
+    "inngest.inngest",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense"
+  ]
+}
+```
+
+</CodeGroup>
+
+### Workspace Settings
+
+<CodeGroup>
+
+```json .vscode/settings.json
+{
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ]
+}
+```
+
+</CodeGroup>
+
+## Common Development Commands
+
+### Database Commands
+
+<CodeGroup>
+
+```bash Development
+# Apply migrations
+pnpx prisma migrate dev
+
+# Reset database
+pnpx prisma migrate reset
+
+# Generate client
+pnpx prisma generate
+
+# Open database studio
+pnpx prisma studio
+```
+
+</CodeGroup>
+
+### Build Commands
+
+<CodeGroup>
+
+```bash Development
+# Development server
+pnpm run dev
+
+# Production build
+pnpm run build
+
+# Start production server
+pnpm run start
+
+# Lint code
+pnpm run lint
+```
+
+</CodeGroup>
+
+### E2B Commands
+
+<CodeGroup>
+
+```bash E2B
+# List sandboxes
+e2b sandbox list
+
+# Connect to sandbox
+e2b sandbox connect <sandbox-id>
+
+# View sandbox logs
+e2b sandbox logs <sandbox-id>
+
+# Delete sandbox
+e2b sandbox delete <sandbox-id>
+```
+
+</CodeGroup>
+
+## Testing Setup
+
+### Install Testing Dependencies
+
+<CodeGroup>
+
+```bash Terminal
+pnpm add -D @testing-library/react @testing-library/jest-dom vitest jsdom
+```
+
+</CodeGroup>
+
+### Configure Testing
+
+<CodeGroup>
+
+```typescript vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
+  },
+});
+```
+
+```typescript src/test-setup.ts
+import '@testing-library/jest-dom';
+```
+
+</CodeGroup>
+
+### Run Tests
+
+<CodeGroup>
+
+```bash Terminal
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+```
+
+</CodeGroup>
+
+## Docker Development Setup
+
+### Using Docker Compose
+
+<CodeGroup>
+
+```yaml docker-compose.dev.yml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@db:5432/novacraft
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=novacraft
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```dockerfile Dockerfile.dev
+FROM node:18-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
+```
+
+</CodeGroup>
+
+### Start with Docker
+
+<CodeGroup>
+
+```bash Terminal
+docker-compose -f docker-compose.dev.yml up
+```
+
+</CodeGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Database Connection Error">
+    **Symptoms**: "Can't connect to database"
+    
+    **Solutions**:
+    - Check PostgreSQL is running
+    - Verify DATABASE_URL format
+    - Ensure database exists
+    - Check firewall settings
+    
+    **Commands**:
+    ```bash
+    # Check PostgreSQL status
+    pg_ctl status
+    
+    # Start PostgreSQL
+    pg_ctl start
+    
+    # Test connection
+    psql -h localhost -U username -d novacraft
+    ```
+  </Accordion>
+  
+  <Accordion title="Prisma Client Generation Failed">
+    **Symptoms**: "Prisma client not generated"
+    
+    **Solutions**:
+    - Run `pnpx prisma generate`
+    - Check schema.prisma syntax
+    - Verify database connection
+    - Clear node_modules and reinstall
+    
+    **Commands**:
+    ```bash
+    # Regenerate client
+    pnpx prisma generate
+    
+    # Reset and regenerate
+    pnpx prisma migrate reset
+    pnpx prisma generate
+    ```
+  </Accordion>
+  
+  <Accordion title="E2B Sandbox Creation Failed">
+    **Symptoms**: "Failed to create sandbox"
+    
+    **Solutions**:
+    - Check E2B API key
+    - Verify template exists
+    - Check account quotas
+    - Verify network connectivity
+    
+    **Commands**:
+    ```bash
+    # Test E2B connection
+    e2b auth whoami
+    
+    # List available templates
+    e2b template list
+    
+    # Check sandbox quota
+    e2b sandbox list
+    ```
+  </Accordion>
+  
+  <Accordion title="Inngest Jobs Not Processing">
+    **Symptoms**: "Jobs stuck in queue"
+    
+    **Solutions**:
+    - Check Inngest dev server is running
+    - Verify event and signing keys
+    - Check function registration
+    - Review Inngest dashboard
+    
+    **Commands**:
+    ```bash
+    # Start Inngest dev server
+    pnpm dlx inngest-cli@latest dev
+    
+    # Check registered functions
+    pnpm dlx inngest-cli@latest dev --verbose
+    ```
+  </Accordion>
+  
+  <Accordion title="TypeScript Errors">
+    **Symptoms**: "Type errors in IDE"
+    
+    **Solutions**:
+    - Restart TypeScript server
+    - Check tsconfig.json
+    - Verify import paths
+    - Update type definitions
+    
+    **Commands**:
+    ```bash
+    # Restart TypeScript
+    # In VS Code: Ctrl+Shift+P > TypeScript: Restart TS Server
+    
+    # Check TypeScript config
+    npx tsc --noEmit
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Debug Mode
+
+Enable debug mode for detailed logging:
+
+<CodeGroup>
+
+```env .env.local
+DEBUG=true
+LOG_LEVEL=debug
+```
+
+</CodeGroup>
+
+### Health Check
+
+Create a simple health check endpoint:
+
+<CodeGroup>
+
+```typescript src/pages/api/health.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import prisma from '@/lib/prisma';
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    
+    // Check environment variables
+    const requiredEnvVars = [
+      'DATABASE_URL',
+      'OPENAI_API_KEY',
+      'E2B_API_KEY',
+      'INNGEST_EVENT_KEY'
+    ];
+    
+    const missingVars = requiredEnvVars.filter(
+      varName => !process.env[varName]
+    );
+    
+    if (missingVars.length > 0) {
+      return res.status(500).json({
+        status: 'error',
+        message: `Missing environment variables: ${missingVars.join(', ')}`
+      });
+    }
+    
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
+}
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Development Commands"
+    icon="terminal"
+    href="/development/commands"
+  >
+    Learn about available development commands
+  </Card>
+  <Card
+    title="Testing Guide"
+    icon="test-tube"
+    href="/development/testing"
+  >
+    Set up testing and quality assurance
+  </Card>
+</CardGroup>

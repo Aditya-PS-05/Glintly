@@ -1,0 +1,251 @@
+---
+title: 'Projects'
+description: 'Understanding projects in NovaCraft'
+---
+
+## What are Projects?
+
+Projects are the top-level organizational unit in NovaCraft. Each project represents a distinct coding workspace where you can interact with AI agents to generate, modify, and execute code.
+
+## Project Structure
+
+A project consists of:
+
+- **Basic Information**: Name, description, and metadata
+- **Message History**: All conversations with AI agents
+- **Code Fragments**: Generated code pieces with execution results
+- **Sandbox Environment**: Isolated execution environment
+
+## Database Schema
+
+Projects are stored in the database with the following structure:
+
+```sql
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  messages  Message[]
+}
+```
+
+## Creating Projects
+
+### Via UI
+
+1. Navigate to the dashboard
+2. Click "Create New Project"
+3. Enter project name and description
+4. Click "Create Project"
+
+### Via API
+
+<CodeGroup>
+
+```typescript tRPC
+const project = await trpc.projects.create.mutate({
+  name: "My New Project",
+  description: "Building a todo application"
+});
+```
+
+```javascript REST API
+const response = await fetch('/api/projects', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    name: 'My New Project',
+    description: 'Building a todo application'
+  })
+});
+```
+
+</CodeGroup>
+
+## Project Features
+
+### Message-Based Interaction
+
+Projects use a conversational interface where you:
+
+1. **Send messages** describing what you want to build
+2. **AI processes** your request and generates code
+3. **Review results** in the preview pane
+4. **Iterate** based on feedback
+
+### Real-time Updates
+
+Project state updates in real-time as:
+
+- Messages are processed
+- Code is generated
+- Sandboxes are created
+- Results are available
+
+### Persistent Storage
+
+All project data is automatically saved:
+
+- Message history
+- Generated code fragments
+- Execution results
+- Sandbox URLs
+
+## Project Management
+
+### Listing Projects
+
+<CodeGroup>
+
+```typescript Component
+export function ProjectList() {
+  const { data: projects } = trpc.projects.list.useQuery();
+  
+  return (
+    <div>
+      {projects?.map(project => (
+        <ProjectCard key={project.id} project={project} />
+      ))}
+    </div>
+  );
+}
+```
+
+```typescript API
+const projects = await trpc.projects.list.query();
+```
+
+</CodeGroup>
+
+### Project Details
+
+<CodeGroup>
+
+```typescript Component
+export function ProjectDetails({ projectId }: { projectId: string }) {
+  const { data: project } = trpc.projects.get.useQuery({ id: projectId });
+  
+  if (!project) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h1>{project.name}</h1>
+      <p>Created: {project.createdAt}</p>
+      <p>Messages: {project.messages.length}</p>
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+## Best Practices
+
+### Naming Conventions
+
+- Use descriptive names: "E-commerce Dashboard" vs "Project 1"
+- Include the technology stack: "React Todo App with TypeScript"
+- Be specific about the purpose: "User Authentication System"
+
+### Project Organization
+
+<Tip>
+Keep projects focused on a single application or feature to maintain clarity and make it easier to manage.
+</Tip>
+
+### Message Structure
+
+When interacting with projects:
+
+1. **Start with context**: "I want to build a React application..."
+2. **Be specific**: Include requirements, technologies, and constraints
+3. **Iterate incrementally**: Make small changes and test frequently
+4. **Provide feedback**: Let the AI know what works and what doesn't
+
+## Project Lifecycle
+
+### 1. Creation
+- Project is created with basic metadata
+- Empty message history
+- No code fragments yet
+
+### 2. Development
+- Messages are exchanged with AI agents
+- Code is generated and executed
+- Fragments are created and stored
+
+### 3. Iteration
+- Code is refined based on feedback
+- New features are added
+- Existing code is modified
+
+### 4. Completion
+- Final code is exported
+- Project can be archived or continued
+
+## Integration with Other Concepts
+
+Projects integrate with other NovaCraft concepts:
+
+- **[Messages](/concepts/messages)**: Store conversation history
+- **[Fragments](/concepts/fragments)**: Contain generated code
+- **[Sandboxes](/concepts/sandboxes)**: Provide execution environment
+
+## Common Use Cases
+
+<CardGroup cols={2}>
+  <Card
+    title="Web Applications"
+    icon="globe"
+  >
+    Build full-stack web applications with React, Next.js, or Vue
+  </Card>
+  <Card
+    title="API Development"
+    icon="code"
+  >
+    Create REST APIs, GraphQL endpoints, and microservices
+  </Card>
+  <Card
+    title="Data Processing"
+    icon="chart-bar"
+  >
+    Build data pipelines, ETL processes, and analytics tools
+  </Card>
+  <Card
+    title="Automation Scripts"
+    icon="robot"
+  >
+    Create automation scripts, CLI tools, and utilities
+  </Card>
+</CardGroup>
+
+## Limitations
+
+- Each project has a maximum of 1000 messages
+- Code fragments are limited to 10MB per project
+- Sandboxes have a 2-hour timeout
+- Only one active sandbox per project
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Messages"
+    icon="message"
+    href="/concepts/messages"
+  >
+    Learn about message-based interactions
+  </Card>
+  <Card
+    title="Fragments"
+    icon="puzzle"
+    href="/concepts/fragments"
+  >
+    Understand code fragment management
+  </Card>
+</CardGroup>

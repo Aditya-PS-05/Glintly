@@ -1,0 +1,599 @@
+---
+title: 'Projects API'
+description: 'API endpoints for managing projects'
+---
+
+## Overview
+
+The Projects API provides endpoints for creating, reading, updating, and managing projects in NovaCraft. All endpoints are type-safe and fully validated.
+
+## Endpoints
+
+### List Projects
+
+Retrieve a list of all projects.
+
+<CodeGroup>
+
+```typescript tRPC Query
+const { data: projects } = trpc.projects.list.useQuery();
+```
+
+```typescript Server Call
+const projects = await trpc.projects.list.query();
+```
+
+</CodeGroup>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type ProjectList = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: {
+    messages: number;
+  };
+}[];
+```
+
+```json Example Response
+[
+  {
+    "id": "clx1234567890abcdef",
+    "name": "Todo Application",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T14:45:00Z",
+    "_count": {
+      "messages": 12
+    }
+  }
+]
+```
+
+</CodeGroup>
+
+### Get Project
+
+Retrieve a specific project by ID.
+
+<CodeGroup>
+
+```typescript tRPC Query
+const { data: project } = trpc.projects.get.useQuery({
+  id: "clx1234567890abcdef"
+});
+```
+
+```typescript Server Call
+const project = await trpc.projects.get.query({
+  id: "clx1234567890abcdef"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="id" type="string" required>
+  The unique identifier of the project
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type Project = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  messages: {
+    id: string;
+    content: string;
+    role: 'USER' | 'ASSISTANT';
+    type: 'RESULT' | 'ERROR';
+    createdAt: Date;
+    fragment?: {
+      id: string;
+      sandboxUrl: string;
+      title: string;
+      files: Record<string, string>;
+    } | null;
+  }[];
+} | null;
+```
+
+```json Example Response
+{
+  "id": "clx1234567890abcdef",
+  "name": "Todo Application",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T14:45:00Z",
+  "messages": [
+    {
+      "id": "msg1234567890abcdef",
+      "content": "Create a todo app with React",
+      "role": "USER",
+      "type": "RESULT",
+      "createdAt": "2024-01-15T10:30:00Z",
+      "fragment": null
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Create Project
+
+Create a new project.
+
+<CodeGroup>
+
+```typescript tRPC Mutation
+const createProject = trpc.projects.create.useMutation({
+  onSuccess: (project) => {
+    console.log('Project created:', project);
+  }
+});
+
+createProject.mutate({
+  name: "My New Project",
+  description: "A project for testing"
+});
+```
+
+```typescript Server Call
+const project = await trpc.projects.create.mutate({
+  name: "My New Project",
+  description: "A project for testing"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="name" type="string" required>
+  The name of the project (1-100 characters)
+</ResponseField>
+
+<ResponseField name="description" type="string" optional>
+  Optional description of the project
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type CreatedProject = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+```
+
+```json Example Response
+{
+  "id": "clx1234567890abcdef",
+  "name": "My New Project",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+</CodeGroup>
+
+### Update Project
+
+Update an existing project.
+
+<CodeGroup>
+
+```typescript tRPC Mutation
+const updateProject = trpc.projects.update.useMutation({
+  onSuccess: (project) => {
+    console.log('Project updated:', project);
+  }
+});
+
+updateProject.mutate({
+  id: "clx1234567890abcdef",
+  name: "Updated Project Name"
+});
+```
+
+```typescript Server Call
+const project = await trpc.projects.update.mutate({
+  id: "clx1234567890abcdef",
+  name: "Updated Project Name"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="id" type="string" required>
+  The unique identifier of the project
+</ResponseField>
+
+<ResponseField name="name" type="string" optional>
+  New name for the project
+</ResponseField>
+
+<ResponseField name="description" type="string" optional>
+  New description for the project
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type UpdatedProject = {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+```
+
+</CodeGroup>
+
+### Delete Project
+
+Delete a project and all its associated data.
+
+<CodeGroup>
+
+```typescript tRPC Mutation
+const deleteProject = trpc.projects.delete.useMutation({
+  onSuccess: () => {
+    console.log('Project deleted');
+  }
+});
+
+deleteProject.mutate({
+  id: "clx1234567890abcdef"
+});
+```
+
+```typescript Server Call
+await trpc.projects.delete.mutate({
+  id: "clx1234567890abcdef"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="id" type="string" required>
+  The unique identifier of the project to delete
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type DeleteResponse = {
+  success: boolean;
+};
+```
+
+```json Example Response
+{
+  "success": true
+}
+```
+
+</CodeGroup>
+
+<Warning>
+Deleting a project will permanently remove all associated messages and code fragments. This action cannot be undone.
+</Warning>
+
+## Error Handling
+
+### Common Errors
+
+<AccordionGroup>
+  <Accordion title="Project Not Found">
+    **Error Code**: `NOT_FOUND`
+    
+    **Cause**: The specified project ID doesn't exist
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "NOT_FOUND",
+      "message": "Project not found"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Validation Error">
+    **Error Code**: `BAD_REQUEST`
+    
+    **Cause**: Invalid input parameters
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "BAD_REQUEST",
+      "message": "Name must be between 1 and 100 characters"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Database Error">
+    **Error Code**: `INTERNAL_SERVER_ERROR`
+    
+    **Cause**: Database connection or query error
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "INTERNAL_SERVER_ERROR",
+      "message": "Database operation failed"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage Examples
+
+### Creating a Project Form
+
+<CodeGroup>
+
+```typescript Project Form Component
+import { useState } from 'react';
+import { trpc } from '@/trpc/client';
+
+export function CreateProjectForm() {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  
+  const createProject = trpc.projects.create.useMutation({
+    onSuccess: (project) => {
+      console.log('Project created:', project);
+      // Redirect to project page
+      router.push(`/projects/${project.id}`);
+    },
+    onError: (error) => {
+      console.error('Failed to create project:', error);
+    }
+  });
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    createProject.mutate({ name, description });
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Project name"
+        required
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Project description (optional)"
+      />
+      <button 
+        type="submit" 
+        disabled={createProject.isLoading}
+      >
+        {createProject.isLoading ? 'Creating...' : 'Create Project'}
+      </button>
+    </form>
+  );
+}
+```
+
+</CodeGroup>
+
+### Project List with Real-time Updates
+
+<CodeGroup>
+
+```typescript Project List Component
+import { trpc } from '@/trpc/client';
+
+export function ProjectList() {
+  const { 
+    data: projects, 
+    isLoading, 
+    error 
+  } = trpc.projects.list.useQuery(
+    undefined,
+    { 
+      refetchInterval: 5000, // Refetch every 5 seconds
+      staleTime: 1000 * 60 * 5 // Consider data stale after 5 minutes
+    }
+  );
+  
+  if (isLoading) return <div>Loading projects...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  
+  return (
+    <div>
+      {projects?.map(project => (
+        <ProjectCard key={project.id} project={project} />
+      ))}
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+### Project Management Dashboard
+
+<CodeGroup>
+
+```typescript Project Dashboard
+import { trpc } from '@/trpc/client';
+
+export function ProjectDashboard() {
+  const { data: projects } = trpc.projects.list.useQuery();
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      // Invalidate and refetch projects list
+      trpc.useUtils().projects.list.invalidate();
+    }
+  });
+  
+  const handleDelete = (projectId: string) => {
+    if (confirm('Are you sure you want to delete this project?')) {
+      deleteProject.mutate({ id: projectId });
+    }
+  };
+  
+  return (
+    <div>
+      <h1>Projects ({projects?.length ?? 0})</h1>
+      {projects?.map(project => (
+        <div key={project.id}>
+          <h3>{project.name}</h3>
+          <p>{project._count.messages} messages</p>
+          <button onClick={() => handleDelete(project.id)}>
+            Delete
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+## Best Practices
+
+### Caching and Performance
+
+<Tip>
+Use React Query's built-in caching for better performance.
+</Tip>
+
+<CodeGroup>
+
+```typescript Optimized Queries
+// Cache projects list for 5 minutes
+const { data: projects } = trpc.projects.list.useQuery(
+  undefined,
+  { 
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 10
+  }
+);
+
+// Prefetch project details
+const utils = trpc.useUtils();
+const prefetchProject = (projectId: string) => {
+  utils.projects.get.prefetch({ id: projectId });
+};
+```
+
+</CodeGroup>
+
+### Optimistic Updates
+
+<CodeGroup>
+
+```typescript Optimistic Updates
+const updateProject = trpc.projects.update.useMutation({
+  onMutate: async (updatedProject) => {
+    // Cancel outgoing refetches
+    await utils.projects.get.cancel({ id: updatedProject.id });
+    
+    // Snapshot the previous value
+    const previousProject = utils.projects.get.getData({ id: updatedProject.id });
+    
+    // Optimistically update to the new value
+    utils.projects.get.setData({ id: updatedProject.id }, old => ({
+      ...old!,
+      ...updatedProject,
+      updatedAt: new Date()
+    }));
+    
+    return { previousProject };
+  },
+  onError: (err, updatedProject, context) => {
+    // Rollback on error
+    utils.projects.get.setData(
+      { id: updatedProject.id },
+      context?.previousProject
+    );
+  },
+  onSettled: (data, error, variables) => {
+    // Always refetch after error or success
+    utils.projects.get.invalidate({ id: variables.id });
+  }
+});
+```
+
+</CodeGroup>
+
+### Error Boundaries
+
+<CodeGroup>
+
+```typescript Error Boundary
+import { ErrorBoundary } from 'react-error-boundary';
+
+function ProjectErrorFallback({ error, resetErrorBoundary }) {
+  return (
+    <div role="alert">
+      <h2>Something went wrong with the project:</h2>
+      <pre>{error.message}</pre>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  );
+}
+
+export function ProjectsPage() {
+  return (
+    <ErrorBoundary FallbackComponent={ProjectErrorFallback}>
+      <ProjectList />
+    </ErrorBoundary>
+  );
+}
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Messages API"
+    icon="message"
+    href="/api-reference/messages"
+  >
+    Learn about message management endpoints
+  </Card>
+  <Card
+    title="Development Setup"
+    icon="wrench"
+    href="/development/setup"
+  >
+    Set up your development environment
+  </Card>
+</CardGroup>

@@ -1,0 +1,569 @@
+---
+title: 'Database Architecture'
+description: 'Database schema, models, and data management in NovaCraft'
+---
+
+## Overview
+
+NovaCraft uses PostgreSQL as its primary database with Prisma as the ORM. The database schema is designed to support real-time collaborative code generation, message history, and code fragment management.
+
+## Database Schema
+
+The core database schema consists of three main entities that work together to provide the NovaCraft experience:
+
+### Core Models
+
+<CardGroup cols={3}>
+  <Card
+    title="Project"
+    icon="folder"
+    href="#project-model"
+  >
+    Container for user projects and conversations
+  </Card>
+  <Card
+    title="Message"
+    icon="message"
+    href="#message-model"
+  >
+    Chat messages and AI responses
+  </Card>
+  <Card
+    title="Fragment"
+    icon="code"
+    href="#fragment-model"
+  >
+    Executable code pieces with sandbox links
+  </Card>
+</CardGroup>
+
+## Project Model
+
+The Project model serves as the main container for all user interactions:
+
+```prisma prisma/schema.prisma
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  messages    Message[]
+  
+  @@map("projects")
+}
+```
+
+### Key Features
+
+- **Unique Identifiers**: Uses CUID for globally unique, URL-safe IDs
+- **Timestamps**: Automatic creation and update tracking
+- **Soft Schema**: Flexible description field for project metadata
+- **Cascade Relations**: Messages are automatically cleaned up when projects are deleted
+
+## Message Model
+
+Messages represent the conversational interface between users and AI agents:
+
+```prisma prisma/schema.prisma
+model Message {
+  id        String      @id @default(cuid())
+  content   String
+  role      MessageRole
+  type      MessageType @default(RESULT)
+  createdAt DateTime    @default(now())
+  
+  // Relations
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  fragments Fragment[]
+  
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum MessageType {
+  RESULT
+  ERROR
+}
+```
+
+### Message Types
+
+<AccordionGroup>
+  <Accordion title="USER Messages">
+    - Contain user input and requests
+    - Natural language descriptions of desired functionality
+    - Questions and clarifications
+    - Feedback and iterations
+  </Accordion>
+  
+  <Accordion title="ASSISTANT Messages">
+    - AI-generated responses
+    - Code explanations and documentation
+    - Error messages and debugging information
+    - Success confirmations
+  </Accordion>
+</AccordionGroup>
+
+### Message Flow
+
+1. **User Input**: User sends a message with role `USER`
+2. **AI Processing**: Inngest agent processes the message
+3. **Response Generation**: AI creates response with role `ASSISTANT`
+4. **Fragment Creation**: If code is generated, fragments are linked
+5. **Type Classification**: Messages are marked as `RESULT` or `ERROR`
+
+## Fragment Model
+
+Fragments represent executable code pieces with their associated sandbox environments:
+
+```prisma prisma/schema.prisma
+model Fragment {
+  id          String   @id @default(cuid())
+  sandboxUrl  String
+  fileContent String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@map("fragments")
+}
+```
+
+### Fragment Structure
+
+- **Sandbox URL**: Direct link to the E2B sandbox environment
+- **File Content**: Complete code content for the fragment
+- **Message Link**: Connected to the message that generated it
+- **Immutable**: Fragments are created once and never modified
+
+## Database Relationships
+
+```mermaid
+erDiagram
+    PROJECT ||--o{ MESSAGE : contains
+    MESSAGE ||--o{ FRAGMENT : generates
+    
+    PROJECT {
+        string id PK
+        string name
+        string description
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    MESSAGE {
+        string id PK
+        string content
+        enum role
+        enum type
+        datetime createdAt
+        string projectId FK
+    }
+    
+    FRAGMENT {
+        string id PK
+        string sandboxUrl
+        string fileContent
+        datetime createdAt
+        string messageId FK
+    }
+```
+
+## Database Operations
+
+### Common Queries
+
+<CodeGroup>
+
+```typescript Project Operations
+// Create new project
+const project = await prisma.project.create({
+  data: {
+    name: "My React App",
+    description: "A todo application with React"
+  }
+});
+
+// Get project with messages
+const projectWithMessages = await prisma.project.findUnique({
+  where: { id: projectId },
+  include: {
+    messages: {
+      include: {
+        fragments: true
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    }
+  }
+});
+```
+
+```typescript Message Operations
+// Create user message
+const userMessage = await prisma.message.create({
+  data: {
+    content: "Create a todo app with React",
+    role: "USER",
+    type: "RESULT",
+    projectId: project.id
+  }
+});
+
+// Create assistant message with fragments
+const assistantMessage = await prisma.message.create({
+  data: {
+    content: "I've created a React todo app for you",
+    role: "ASSISTANT",
+    type: "RESULT",
+    projectId: project.id,
+    fragments: {
+      create: [
+        {
+          sandboxUrl: "https://sandbox.e2b.dev/abc123",
+          fileContent: "import React from 'react'..."
+        }
+      ]
+    }
+  },
+  include: {
+    fragments: true
+  }
+});
+```
+
+</CodeGroup>
+
+### Advanced Queries
+
+<CodeGroup>
+
+```typescript Analytics Queries
+// Get project statistics
+const projectStats = await prisma.project.findMany({
+  select: {
+    id: true,
+    name: true,
+    createdAt: true,
+    _count: {
+      select: {
+        messages: true
+      }
+    }
+  },
+  orderBy: {
+    createdAt: 'desc'
+  }
+});
+
+// Get recent activity
+const recentActivity = await prisma.message.findMany({
+  take: 10,
+  orderBy: {
+    createdAt: 'desc'
+  },
+  include: {
+    project: {
+      select: {
+        name: true
+      }
+    },
+    fragments: {
+      select: {
+        sandboxUrl: true
+      }
+    }
+  }
+});
+```
+
+```typescript Cleanup Operations
+// Delete old projects (older than 30 days)
+const cutoffDate = new Date();
+cutoffDate.setDate(cutoffDate.getDate() - 30);
+
+await prisma.project.deleteMany({
+  where: {
+    updatedAt: {
+      lt: cutoffDate
+    }
+  }
+});
+
+// Archive fragments without active sandboxes
+await prisma.fragment.updateMany({
+  where: {
+    sandboxUrl: {
+      contains: "expired"
+    }
+  },
+  data: {
+    sandboxUrl: "archived"
+  }
+});
+```
+
+</CodeGroup>
+
+## Performance Considerations
+
+### Indexing Strategy
+
+```sql
+-- Primary indexes (automatically created)
+CREATE INDEX idx_projects_id ON projects(id);
+CREATE INDEX idx_messages_id ON messages(id);
+CREATE INDEX idx_fragments_id ON fragments(id);
+
+-- Foreign key indexes
+CREATE INDEX idx_messages_project_id ON messages(project_id);
+CREATE INDEX idx_fragments_message_id ON fragments(message_id);
+
+-- Query optimization indexes
+CREATE INDEX idx_messages_created_at ON messages(created_at);
+CREATE INDEX idx_projects_updated_at ON projects(updated_at);
+CREATE INDEX idx_messages_role_type ON messages(role, type);
+```
+
+### Query Optimization
+
+<AccordionGroup>
+  <Accordion title="Message Pagination">
+    Use cursor-based pagination for large message histories:
+    
+    ```typescript
+    const messages = await prisma.message.findMany({
+      where: { projectId },
+      cursor: lastMessageId ? { id: lastMessageId } : undefined,
+      take: 20,
+      orderBy: { createdAt: 'asc' }
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Fragment Preloading">
+    Preload fragments when querying messages to avoid N+1 queries:
+    
+    ```typescript
+    const messages = await prisma.message.findMany({
+      where: { projectId },
+      include: {
+        fragments: {
+          select: {
+            id: true,
+            sandboxUrl: true
+          }
+        }
+      }
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Migration Strategy
+
+### Development Migrations
+
+<CodeGroup>
+
+```bash Development
+# Create new migration
+pnpx prisma migrate dev --name add_user_model
+
+# Reset development database
+pnpx prisma migrate reset
+
+# Apply pending migrations
+pnpx prisma migrate dev
+```
+
+```bash Production
+# Apply migrations to production
+pnpx prisma migrate deploy
+
+# Check migration status
+pnpx prisma migrate status
+```
+
+</CodeGroup>
+
+### Schema Evolution
+
+When evolving the schema, follow these patterns:
+
+1. **Additive Changes**: Add new optional fields first
+2. **Data Migration**: Use custom migration scripts for data transformation
+3. **Backward Compatibility**: Ensure API remains compatible during transitions
+4. **Testing**: Thoroughly test migrations on staging data
+
+## Connection Management
+
+### Database Connection
+
+```typescript lib/prisma.ts
+import { PrismaClient } from '@/generated/prisma';
+
+declare global {
+  var prisma: PrismaClient | undefined;
+}
+
+export const prisma = globalThis.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') {
+  globalThis.prisma = prisma;
+}
+```
+
+### Connection Pooling
+
+For production deployments, consider connection pooling:
+
+```env
+# Production database URL with connection pooling
+DATABASE_URL="postgresql://user:password@host:5432/db?connection_limit=10&pool_timeout=20"
+```
+
+## Backup and Recovery
+
+### Automated Backups
+
+<CodeGroup>
+
+```bash Daily Backup
+#!/bin/bash
+# Create daily backup
+DATE=$(date +%Y%m%d)
+pg_dump novacraft > backups/novacraft_$DATE.sql
+
+# Compress backup
+gzip backups/novacraft_$DATE.sql
+
+# Upload to cloud storage
+aws s3 cp backups/novacraft_$DATE.sql.gz s3://novacraft-backups/
+```
+
+```bash Recovery
+# Restore from backup
+psql novacraft < backups/novacraft_20231201.sql
+
+# Verify data integrity
+pnpx prisma db pull
+pnpx prisma generate
+```
+
+</CodeGroup>
+
+## Security Considerations
+
+### Data Protection
+
+- **Encryption**: All sensitive data encrypted at rest
+- **Access Control**: Row-level security for multi-tenant scenarios
+- **Audit Logging**: Track all database modifications
+- **Backup Security**: Encrypted backups with rotation
+
+### Query Security
+
+```typescript
+// Always use parameterized queries
+const messages = await prisma.message.findMany({
+  where: {
+    projectId: projectId, // Parameterized
+    role: 'USER'
+  }
+});
+
+// Avoid string concatenation
+// BAD: `SELECT * FROM messages WHERE project_id = '${projectId}'`
+```
+
+## Monitoring and Maintenance
+
+### Database Monitoring
+
+<CodeGroup>
+
+```typescript Health Checks
+// Database health check
+export async function checkDatabaseHealth() {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return { status: 'healthy', timestamp: new Date() };
+  } catch (error) {
+    return { status: 'unhealthy', error: error.message };
+  }
+}
+```
+
+```typescript Metrics Collection
+// Collect database metrics
+export async function getDatabaseMetrics() {
+  const [projectCount, messageCount, fragmentCount] = await Promise.all([
+    prisma.project.count(),
+    prisma.message.count(),
+    prisma.fragment.count()
+  ]);
+  
+  return {
+    projects: projectCount,
+    messages: messageCount,
+    fragments: fragmentCount,
+    timestamp: new Date()
+  };
+}
+```
+
+</CodeGroup>
+
+### Maintenance Tasks
+
+```typescript
+// Regular maintenance tasks
+export async function performMaintenance() {
+  // Clean up old fragments
+  await prisma.fragment.deleteMany({
+    where: {
+      createdAt: {
+        lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+      }
+    }
+  });
+  
+  // Update statistics
+  await prisma.$executeRaw`ANALYZE`;
+  
+  // Vacuum database
+  await prisma.$executeRaw`VACUUM`;
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="API Architecture"
+    icon="server"
+    href="/architecture/api"
+  >
+    Learn about the tRPC API layer
+  </Card>
+  <Card
+    title="Agent System"
+    icon="robot"
+    href="/architecture/agents"
+  >
+    Understand the AI agent architecture
+  </Card>
+</CardGroup>

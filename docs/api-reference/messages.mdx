@@ -1,0 +1,758 @@
+---
+title: 'Messages API'
+description: 'API endpoints for managing messages and conversations'
+---
+
+## Overview
+
+The Messages API handles all communication between users and AI agents. It manages message creation, retrieval, and the triggering of AI processing through Inngest jobs.
+
+## Endpoints
+
+### Send Message
+
+Create a new message and trigger AI processing.
+
+<CodeGroup>
+
+```typescript tRPC Mutation
+const sendMessage = trpc.messages.send.useMutation({
+  onSuccess: (message) => {
+    console.log('Message sent:', message);
+  }
+});
+
+sendMessage.mutate({
+  projectId: "clx1234567890abcdef",
+  content: "Create a todo application with React",
+  role: "USER",
+  type: "RESULT"
+});
+```
+
+```typescript Server Call
+const message = await trpc.messages.send.mutate({
+  projectId: "clx1234567890abcdef",
+  content: "Create a todo application with React",
+  role: "USER",
+  type: "RESULT"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="projectId" type="string" required>
+  The unique identifier of the project
+</ResponseField>
+
+<ResponseField name="content" type="string" required>
+  The message content (1-10,000 characters)
+</ResponseField>
+
+<ResponseField name="role" type="'USER' | 'ASSISTANT'" required>
+  The role of the message sender
+</ResponseField>
+
+<ResponseField name="type" type="'RESULT' | 'ERROR'" required>
+  The type of message
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type SentMessage = {
+  id: string;
+  content: string;
+  role: 'USER' | 'ASSISTANT';
+  type: 'RESULT' | 'ERROR';
+  createdAt: Date;
+  updatedAt: Date;
+  projectId: string;
+};
+```
+
+```json Example Response
+{
+  "id": "msg1234567890abcdef",
+  "content": "Create a todo application with React",
+  "role": "USER",
+  "type": "RESULT",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:30:00Z",
+  "projectId": "clx1234567890abcdef"
+}
+```
+
+</CodeGroup>
+
+<Info>
+Sending a USER message automatically triggers an Inngest job to process the message with AI agents and generate a response.
+</Info>
+
+### Get Messages by Project
+
+Retrieve all messages for a specific project.
+
+<CodeGroup>
+
+```typescript tRPC Query
+const { data: messages } = trpc.messages.getByProject.useQuery({
+  projectId: "clx1234567890abcdef"
+});
+```
+
+```typescript Server Call
+const messages = await trpc.messages.getByProject.query({
+  projectId: "clx1234567890abcdef"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="projectId" type="string" required>
+  The unique identifier of the project
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type ProjectMessages = {
+  id: string;
+  content: string;
+  role: 'USER' | 'ASSISTANT';
+  type: 'RESULT' | 'ERROR';
+  createdAt: Date;
+  updatedAt: Date;
+  projectId: string;
+  fragment?: {
+    id: string;
+    sandboxUrl: string;
+    title: string;
+    files: Record<string, string>;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
+}[];
+```
+
+```json Example Response
+[
+  {
+    "id": "msg1234567890abcdef",
+    "content": "Create a todo application with React",
+    "role": "USER",
+    "type": "RESULT",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z",
+    "projectId": "clx1234567890abcdef",
+    "fragment": null
+  },
+  {
+    "id": "msg2345678901bcdefg",
+    "content": "I've created a todo application with React...",
+    "role": "ASSISTANT",
+    "type": "RESULT",
+    "createdAt": "2024-01-15T10:32:00Z",
+    "updatedAt": "2024-01-15T10:32:00Z",
+    "projectId": "clx1234567890abcdef",
+    "fragment": {
+      "id": "frag123456789abcdef",
+      "sandboxUrl": "https://sandbox-123.e2b.dev",
+      "title": "Todo Application",
+      "files": {
+        "src/App.tsx": "import React from 'react';\n\nfunction App() {\n  return <div>Todo App</div>;\n}\n\nexport default App;"
+      },
+      "createdAt": "2024-01-15T10:32:00Z",
+      "updatedAt": "2024-01-15T10:32:00Z"
+    }
+  }
+]
+```
+
+</CodeGroup>
+
+### Get Message by ID
+
+Retrieve a specific message by its ID.
+
+<CodeGroup>
+
+```typescript tRPC Query
+const { data: message } = trpc.messages.getById.useQuery({
+  id: "msg1234567890abcdef"
+});
+```
+
+```typescript Server Call
+const message = await trpc.messages.getById.query({
+  id: "msg1234567890abcdef"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="id" type="string" required>
+  The unique identifier of the message
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type Message = {
+  id: string;
+  content: string;
+  role: 'USER' | 'ASSISTANT';
+  type: 'RESULT' | 'ERROR';
+  createdAt: Date;
+  updatedAt: Date;
+  projectId: string;
+  fragment?: {
+    id: string;
+    sandboxUrl: string;
+    title: string;
+    files: Record<string, string>;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;
+} | null;
+```
+
+</CodeGroup>
+
+### Delete Message
+
+Delete a specific message.
+
+<CodeGroup>
+
+```typescript tRPC Mutation
+const deleteMessage = trpc.messages.delete.useMutation({
+  onSuccess: () => {
+    console.log('Message deleted');
+  }
+});
+
+deleteMessage.mutate({
+  id: "msg1234567890abcdef"
+});
+```
+
+```typescript Server Call
+await trpc.messages.delete.mutate({
+  id: "msg1234567890abcdef"
+});
+```
+
+</CodeGroup>
+
+**Parameters**
+
+<ResponseField name="id" type="string" required>
+  The unique identifier of the message to delete
+</ResponseField>
+
+**Response**
+
+<CodeGroup>
+
+```typescript Response Type
+type DeleteResponse = {
+  success: boolean;
+};
+```
+
+```json Example Response
+{
+  "success": true
+}
+```
+
+</CodeGroup>
+
+<Warning>
+Deleting a message will also delete any associated code fragments. This action cannot be undone.
+</Warning>
+
+## Message Processing Flow
+
+### User Message Processing
+
+When a USER message is sent, the following flow is triggered:
+
+1. **Message Validation**: Input is validated using Zod schema
+2. **Database Storage**: Message is stored in the database
+3. **Inngest Job**: `code-agent/run` event is triggered
+4. **AI Processing**: AI agent processes the message and generates code
+5. **Response Creation**: Assistant message is created with results
+6. **Fragment Storage**: Code fragment is stored if successful
+
+<CodeGroup>
+
+```typescript Processing Flow
+// 1. User sends message
+const userMessage = await trpc.messages.send.mutate({
+  projectId: "project-123",
+  content: "Create a React todo app",
+  role: "USER",
+  type: "RESULT"
+});
+
+// 2. Inngest job is triggered automatically
+// 3. AI processes the request
+// 4. Assistant message is created
+const assistantMessage = {
+  id: "msg-456",
+  content: "I've created a todo application...",
+  role: "ASSISTANT",
+  type: "RESULT",
+  fragment: {
+    sandboxUrl: "https://sandbox-123.e2b.dev",
+    title: "Todo Application",
+    files: { /* generated files */ }
+  }
+};
+```
+
+</CodeGroup>
+
+### Error Handling in Processing
+
+If AI processing fails, an error message is automatically created:
+
+<CodeGroup>
+
+```typescript Error Response
+{
+  "id": "msg-error-123",
+  "content": "Something went wrong. Please try again",
+  "role": "ASSISTANT",
+  "type": "ERROR",
+  "projectId": "project-123",
+  "fragment": null
+}
+```
+
+</CodeGroup>
+
+## Real-time Updates
+
+### Polling for New Messages
+
+<CodeGroup>
+
+```typescript Real-time Messages
+export function MessagesContainer({ projectId }: { projectId: string }) {
+  const { data: messages } = trpc.messages.getByProject.useQuery(
+    { projectId },
+    { 
+      refetchInterval: 2000, // Poll every 2 seconds
+      refetchIntervalInBackground: true
+    }
+  );
+  
+  return (
+    <div>
+      {messages?.map(message => (
+        <MessageCard key={message.id} message={message} />
+      ))}
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+### Manual Refresh
+
+<CodeGroup>
+
+```typescript Manual Refresh
+export function useMessagesRefresh(projectId: string) {
+  const utils = trpc.useUtils();
+  
+  const refresh = () => {
+    utils.messages.getByProject.invalidate({ projectId });
+  };
+  
+  return { refresh };
+}
+```
+
+</CodeGroup>
+
+## Error Handling
+
+### Common Errors
+
+<AccordionGroup>
+  <Accordion title="Project Not Found">
+    **Error Code**: `NOT_FOUND`
+    
+    **Cause**: The specified project ID doesn't exist
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "NOT_FOUND",
+      "message": "Project not found"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Message Too Long">
+    **Error Code**: `BAD_REQUEST`
+    
+    **Cause**: Message content exceeds 10,000 characters
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "BAD_REQUEST",
+      "message": "Message content must be less than 10,000 characters"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Invalid Role">
+    **Error Code**: `BAD_REQUEST`
+    
+    **Cause**: Invalid role specified
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "BAD_REQUEST",
+      "message": "Role must be either 'USER' or 'ASSISTANT'"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Message Not Found">
+    **Error Code**: `NOT_FOUND`
+    
+    **Cause**: The specified message ID doesn't exist
+    
+    **Example**:
+    ```typescript
+    {
+      "code": "NOT_FOUND",
+      "message": "Message not found"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Usage Examples
+
+### Chat Interface
+
+<CodeGroup>
+
+```typescript Chat Component
+import { useState } from 'react';
+import { trpc } from '@/trpc/client';
+
+export function ChatInterface({ projectId }: { projectId: string }) {
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { data: messages } = trpc.messages.getByProject.useQuery(
+    { projectId },
+    { refetchInterval: 2000 }
+  );
+  
+  const sendMessage = trpc.messages.send.useMutation({
+    onMutate: () => setIsLoading(true),
+    onSettled: () => setIsLoading(false),
+    onError: (error) => {
+      console.error('Failed to send message:', error);
+    }
+  });
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    
+    sendMessage.mutate({
+      projectId,
+      content: input,
+      role: 'USER',
+      type: 'RESULT'
+    });
+    
+    setInput('');
+  };
+  
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto">
+        {messages?.map(message => (
+          <div key={message.id} className={`message ${message.role}`}>
+            <div className="content">{message.content}</div>
+            {message.fragment && (
+              <div className="fragment">
+                <a href={message.fragment.sandboxUrl} target="_blank">
+                  View {message.fragment.title}
+                </a>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      <form onSubmit={handleSubmit} className="border-t p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Describe what you want to build..."
+            className="flex-1 px-3 py-2 border rounded"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+          >
+            {isLoading ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+### Message Display Component
+
+<CodeGroup>
+
+```typescript Message Card
+import { format } from 'date-fns';
+import { Fragment } from '@/generated/prisma';
+
+interface MessageCardProps {
+  message: {
+    id: string;
+    content: string;
+    role: 'USER' | 'ASSISTANT';
+    type: 'RESULT' | 'ERROR';
+    createdAt: Date;
+    fragment?: Fragment | null;
+  };
+  onFragmentSelect?: (fragment: Fragment) => void;
+}
+
+export function MessageCard({ message, onFragmentSelect }: MessageCardProps) {
+  const isUser = message.role === 'USER';
+  const isError = message.type === 'ERROR';
+  
+  return (
+    <div className={`message-card ${isUser ? 'user' : 'assistant'} ${isError ? 'error' : ''}`}>
+      <div className="message-header">
+        <span className="role">{message.role}</span>
+        <span className="timestamp">
+          {format(message.createdAt, 'HH:mm')}
+        </span>
+      </div>
+      
+      <div className="message-content">
+        {message.content}
+      </div>
+      
+      {message.fragment && (
+        <div className="fragment-preview">
+          <h4>{message.fragment.title}</h4>
+          <button
+            onClick={() => onFragmentSelect?.(message.fragment!)}
+            className="view-fragment-btn"
+          >
+            View Code
+          </button>
+          <a
+            href={message.fragment.sandboxUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="preview-link"
+          >
+            Live Preview
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+</CodeGroup>
+
+### Optimistic Updates
+
+<CodeGroup>
+
+```typescript Optimistic Updates
+export function useOptimisticMessages(projectId: string) {
+  const utils = trpc.useUtils();
+  
+  const sendMessage = trpc.messages.send.useMutation({
+    onMutate: async (newMessage) => {
+      // Cancel any outgoing refetches
+      await utils.messages.getByProject.cancel({ projectId });
+      
+      // Snapshot the previous value
+      const previousMessages = utils.messages.getByProject.getData({ projectId });
+      
+      // Optimistically update to the new value
+      const optimisticMessage = {
+        id: 'temp-' + Date.now(),
+        ...newMessage,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        fragment: null
+      };
+      
+      utils.messages.getByProject.setData({ projectId }, old => [
+        ...(old || []),
+        optimisticMessage
+      ]);
+      
+      return { previousMessages };
+    },
+    
+    onError: (err, newMessage, context) => {
+      // Rollback on error
+      utils.messages.getByProject.setData(
+        { projectId },
+        context?.previousMessages
+      );
+    },
+    
+    onSettled: () => {
+      // Always refetch after error or success
+      utils.messages.getByProject.invalidate({ projectId });
+    }
+  });
+  
+  return { sendMessage };
+}
+```
+
+</CodeGroup>
+
+## Best Practices
+
+### Message Formatting
+
+<Tip>
+Structure your messages clearly for better AI understanding and results.
+</Tip>
+
+**Good Examples:**
+```
+Create a React component that:
+1. Displays a list of todos
+2. Allows adding new todos
+3. Has toggle functionality for completion
+4. Uses TypeScript for type safety
+```
+
+**Avoid:**
+```
+make a todo thing
+```
+
+### Error Recovery
+
+<CodeGroup>
+
+```typescript Error Recovery
+export function useMessageWithRetry(projectId: string) {
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  
+  const sendMessage = trpc.messages.send.useMutation({
+    onError: (error) => {
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          sendMessage.mutate(/* same parameters */);
+        }, 1000 * Math.pow(2, retryCount)); // Exponential backoff
+      }
+    },
+    onSuccess: () => {
+      setRetryCount(0);
+    }
+  });
+  
+  return { sendMessage, retryCount, canRetry: retryCount < maxRetries };
+}
+```
+
+</CodeGroup>
+
+### Performance Optimization
+
+<CodeGroup>
+
+```typescript Performance Optimization
+// Use React.memo for message components
+const MessageCard = React.memo(({ message }) => {
+  // Component implementation
+});
+
+// Virtualize long message lists
+import { FixedSizeList as List } from 'react-window';
+
+export function VirtualizedMessageList({ messages }) {
+  return (
+    <List
+      height={400}
+      itemCount={messages.length}
+      itemSize={100}
+      itemData={messages}
+    >
+      {({ index, style, data }) => (
+        <div style={style}>
+          <MessageCard message={data[index]} />
+        </div>
+      )}
+    </List>
+  );
+}
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Architecture Overview"
+    icon="blueprint"
+    href="/architecture/overview"
+  >
+    Learn about the system architecture
+  </Card>
+  <Card
+    title="Development Guide"
+    icon="wrench"
+    href="/development/setup"
+  >
+    Set up your development environment
+  </Card>
+</CardGroup>

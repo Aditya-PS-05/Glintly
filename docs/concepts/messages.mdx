@@ -1,0 +1,399 @@
+---
+title: 'Messages'
+description: 'Understanding the message system in NovaCraft'
+---
+
+## What are Messages?
+
+Messages are the core communication unit in NovaCraft. They represent the conversation between users and AI agents, storing both user inputs and AI responses along with their execution results.
+
+## Message Structure
+
+Each message contains:
+
+- **Content**: The actual message text
+- **Role**: Who sent the message (USER or ASSISTANT)
+- **Type**: The message type (RESULT or ERROR)
+- **Timestamp**: When the message was created
+- **Associated Fragment**: Generated code (if applicable)
+
+## Database Schema
+
+Messages are stored with the following structure:
+
+```sql
+model Message {
+  id        String      @id @default(uuid())
+  content   String
+  role      MessageRole
+  type      MessageType
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id])
+  
+  fragment  Fragment?
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum MessageType {
+  RESULT
+  ERROR
+}
+```
+
+## Message Types
+
+### User Messages
+
+User messages represent input from the human user:
+
+```typescript
+{
+  role: "USER",
+  type: "RESULT",
+  content: "Create a todo application with React and TypeScript",
+  projectId: "project-123"
+}
+```
+
+### Assistant Messages
+
+Assistant messages contain AI responses:
+
+<CodeGroup>
+
+```typescript Success Response
+{
+  role: "ASSISTANT",
+  type: "RESULT",
+  content: "I've created a todo application with React and TypeScript...",
+  projectId: "project-123",
+  fragment: {
+    sandboxUrl: "https://sandbox-123.e2b.dev",
+    title: "Todo Application",
+    files: { ... }
+  }
+}
+```
+
+```typescript Error Response
+{
+  role: "ASSISTANT",
+  type: "ERROR",
+  content: "Something went wrong. Please try again",
+  projectId: "project-123"
+}
+```
+
+</CodeGroup>
+
+## Message Lifecycle
+
+### 1. User Input
+- User types a message in the chat interface
+- Message is saved to database with role "USER"
+- Triggers AI processing via Inngest
+
+### 2. AI Processing
+- Inngest job processes the user message
+- AI agent generates code and executes it
+- Results are prepared for response
+
+### 3. Response Creation
+- Assistant message is created with results
+- Code fragment is attached if successful
+- Message is stored in database
+
+### 4. UI Update
+- Client receives real-time updates
+- Messages are displayed in chat interface
+- Code fragments are shown in preview
+
+## Sending Messages
+
+### Via UI Component
+
+<CodeGroup>
+
+```typescript MessageForm
+export function MessageForm({ projectId }: { projectId: string }) {
+  const [message, setMessage] = useState("");
+  const sendMessage = trpc.messages.send.useMutation();
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendMessage.mutateAsync({
+      projectId,
+      content: message,
+      role: "USER",
+      type: "RESULT"
+    });
+    setMessage("");
+  };
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <textarea 
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Describe what you want to build..."
+      />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+</CodeGroup>
+
+### Via API
+
+<CodeGroup>
+
+```typescript tRPC
+const message = await trpc.messages.send.mutate({
+  projectId: "project-123",
+  content: "Create a login form with validation",
+  role: "USER",
+  type: "RESULT"
+});
+```
+
+```javascript REST API
+const response = await fetch('/api/messages', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    projectId: 'project-123',
+    content: 'Create a login form with validation',
+    role: 'USER',
+    type: 'RESULT'
+  })
+});
+```
+
+</CodeGroup>
+
+## Retrieving Messages
+
+### Get Project Messages
+
+<CodeGroup>
+
+```typescript Component
+export function MessagesContainer({ projectId }: { projectId: string }) {
+  const { data: messages } = trpc.messages.getByProject.useQuery({
+    projectId
+  });
+  
+  return (
+    <div>
+      {messages?.map(message => (
+        <MessageCard key={message.id} message={message} />
+      ))}
+    </div>
+  );
+}
+```
+
+```typescript API
+const messages = await trpc.messages.getByProject.query({
+  projectId: "project-123"
+});
+```
+
+</CodeGroup>
+
+### Real-time Updates
+
+Messages support real-time updates using React Query:
+
+```typescript
+export function useMessages(projectId: string) {
+  const utils = trpc.useUtils();
+  
+  // Subscribe to new messages
+  useEffect(() => {
+    const interval = setInterval(() => {
+      utils.messages.getByProject.invalidate({ projectId });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [projectId, utils]);
+  
+  return trpc.messages.getByProject.useQuery({ projectId });
+}
+```
+
+## Message Processing
+
+### AI Agent Processing
+
+When a user message is received, it triggers an Inngest job:
+
+<CodeGroup>
+
+```typescript Inngest Job
+export const codeAgentFunction = inngest.createFunction(
+  { id: "code-agent" },
+  { event: "code-agent/run" },
+  async ({ event, step }) => {
+    // Process the user message
+    const result = await processUserMessage(event.data.message);
+    
+    // Save assistant response
+    await prisma.message.create({
+      data: {
+        projectId: event.data.projectId,
+        content: result.summary,
+        role: "ASSISTANT",
+        type: "RESULT",
+        fragment: {
+          create: {
+            sandboxUrl: result.sandboxUrl,
+            title: result.title,
+            files: result.files
+          }
+        }
+      }
+    });
+  }
+);
+```
+
+</CodeGroup>
+
+### Error Handling
+
+When processing fails, error messages are created:
+
+```typescript
+await prisma.message.create({
+  data: {
+    projectId: event.data.projectId,
+    content: "Something went wrong. Please try again",
+    role: "ASSISTANT",
+    type: "ERROR"
+  }
+});
+```
+
+## Best Practices
+
+### Clear Communication
+
+<Tip>
+Write clear, specific messages to get better results from AI agents.
+</Tip>
+
+**Good Examples:**
+- "Create a React component for a user profile card with name, avatar, and bio"
+- "Add form validation to the login form using Zod schema"
+- "Implement user authentication with JWT tokens and refresh logic"
+
+**Avoid:**
+- "Make it better"
+- "Fix this"
+- "Add more features"
+
+### Message Formatting
+
+For complex requests, use structured formatting:
+
+```
+I need a dashboard component with:
+1. User statistics (total users, active users, new signups)
+2. Revenue chart showing last 30 days
+3. Recent activity feed
+4. Responsive design for mobile and desktop
+
+Technology stack: React, TypeScript, Tailwind CSS, Recharts
+```
+
+### Iterative Development
+
+Break large features into smaller messages:
+
+1. "Create the basic dashboard layout"
+2. "Add user statistics cards"
+3. "Implement the revenue chart"
+4. "Add the activity feed"
+
+## Message Limits
+
+- Maximum message length: 10,000 characters
+- Maximum messages per project: 1,000
+- Message history is preserved for 30 days
+- Deleted messages cannot be recovered
+
+## Integration with Fragments
+
+Messages can have associated code fragments:
+
+<CodeGroup>
+
+```typescript MessageWithFragment
+interface MessageWithFragment {
+  id: string;
+  content: string;
+  role: MessageRole;
+  type: MessageType;
+  createdAt: Date;
+  fragment?: {
+    sandboxUrl: string;
+    title: string;
+    files: Record<string, string>;
+  };
+}
+```
+
+</CodeGroup>
+
+## Common Patterns
+
+### Progressive Enhancement
+
+```typescript
+// Message 1: Basic structure
+"Create a todo app with add/remove functionality"
+
+// Message 2: Add features
+"Add due dates and priority levels to the todos"
+
+// Message 3: Enhance UI
+"Make the todo app responsive and add dark mode"
+```
+
+### Error Recovery
+
+```typescript
+// If you get an error, try being more specific
+"The login form isn't working. Please create a login form with email/password fields, form validation, and submit handling"
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Fragments"
+    icon="puzzle"
+    href="/concepts/fragments"
+  >
+    Learn about code fragments and execution
+  </Card>
+  <Card
+    title="Sandboxes"
+    icon="cube"
+    href="/concepts/sandboxes"
+  >
+    Understand sandbox environments
+  </Card>
+</CardGroup>

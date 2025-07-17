@@ -1,0 +1,975 @@
+---
+title: 'API Architecture'
+description: 'tRPC-based type-safe API layer for NovaCraft'
+---
+
+## Overview
+
+NovaCraft uses tRPC (TypeScript Remote Procedure Call) to provide a fully type-safe API layer between the frontend and backend. This architecture ensures end-to-end type safety, excellent developer experience, and robust error handling.
+
+## API Architecture
+
+<CardGroup cols={3}>
+  <Card
+    title="Type Safety"
+    icon="shield-check"
+    href="#type-safety"
+  >
+    Full TypeScript type safety from client to server
+  </Card>
+  <Card
+    title="Router System"
+    icon="route"
+    href="#router-system"
+  >
+    Modular router structure for organized API endpoints
+  </Card>
+  <Card
+    title="Real-time Features"
+    icon="bolt"
+    href="#real-time-features"
+  >
+    WebSocket subscriptions for live updates
+  </Card>
+</CardGroup>
+
+## tRPC Configuration
+
+### Server Setup
+
+The main tRPC configuration is located in `src/trpc/trpc.ts`:
+
+```typescript src/trpc/trpc.ts
+import { TRPCError, initTRPC } from '@trpc/server';
+import { Context } from './context';
+import superjson from 'superjson';
+
+const t = initTRPC.context<Context>().create({
+  transformer: superjson,
+  errorFormatter({ shape, error }) {
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
+      },
+    };
+  },
+});
+
+export const router = t.router;
+export const publicProcedure = t.procedure;
+export const protectedProcedure = t.procedure.use(
+  t.middleware(({ ctx, next }) => {
+    if (!ctx.session || !ctx.session.user) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    return next({
+      ctx: {
+        ...ctx,
+        session: { ...ctx.session, user: ctx.session.user },
+      },
+    });
+  })
+);
+```
+
+### Context Provider
+
+```typescript src/trpc/context.ts
+import { inferAsyncReturnType } from '@trpc/server';
+import { CreateNextContextOptions } from '@trpc/server/adapters/next';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+export async function createContext(opts: CreateNextContextOptions) {
+  const session = await getServerSession(opts.req, opts.res, authOptions);
+  
+  return {
+    session,
+    prisma,
+    req: opts.req,
+    res: opts.res,
+  };
+}
+
+export type Context = inferAsyncReturnType<typeof createContext>;
+```
+
+### Client Setup
+
+```typescript src/trpc/client.ts
+import { createTRPCNext } from '@trpc/next';
+import { httpBatchLink, loggerLink, wsLink, splitLink } from '@trpc/client';
+import { getUrl, transformer } from './shared';
+import type { AppRouter } from './routers/_app';
+
+function getEndingLink(ctx: any) {
+  if (typeof window === 'undefined') {
+    return httpBatchLink({
+      url: getUrl(),
+      headers() {
+        return {
+          cookie: ctx?.req?.headers?.cookie,
+        };
+      },
+    });
+  }
+  
+  return splitLink({
+    condition(op) {
+      return op.type === 'subscription';
+    },
+    true: wsLink({
+      url: getUrl().replace(/^http/, 'ws'),
+    }),
+    false: httpBatchLink({
+      url: getUrl(),
+    }),
+  });
+}
+
+export const trpc = createTRPCNext<AppRouter>({
+  config({ ctx }) {
+    return {
+      transformer,
+      links: [
+        loggerLink({
+          enabled: (opts) =>
+            process.env.NODE_ENV === 'development' ||
+            (opts.direction === 'down' && opts.result instanceof Error),
+        }),
+        getEndingLink(ctx),
+      ],
+    };
+  },
+  ssr: false,
+});
+```
+
+## Router System
+
+### Main App Router
+
+The main router combines all feature-specific routers:
+
+```typescript src/trpc/routers/_app.ts
+import { router } from '../trpc';
+import { projectsRouter } from './projects';
+import { messagesRouter } from './messages';
+
+export const appRouter = router({
+  projects: projectsRouter,
+  messages: messagesRouter,
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+### Projects Router
+
+```typescript src/trpc/routers/projects.ts
+import { router, publicProcedure } from '../trpc';
+import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
+
+export const projectsRouter = router({
+  // Get all projects
+  getAll: publicProcedure
+    .query(async ({ ctx }) => {
+      return await ctx.prisma.project.findMany({
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          _count: {
+            select: { messages: true }
+          }
+        }
+      });
+    }),
+  
+  // Get single project with messages
+  getById: publicProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      const project = await ctx.prisma.project.findUnique({
+        where: { id: input.id },
+        include: {
+          messages: {
+            include: {
+              fragments: true
+            },
+            orderBy: { createdAt: 'asc' }
+          }
+        }
+      });
+      
+      if (!project) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Project not found'
+        });
+      }
+      
+      return project;
+    }),
+  
+  // Create new project
+  create: publicProcedure
+    .input(z.object({
+      name: z.string().min(1).max(100),
+      description: z.string().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.prisma.project.create({
+        data: {
+          name: input.name,
+          description: input.description
+        }
+      });
+    }),
+  
+  // Update project
+  update: publicProcedure
+    .input(z.object({
+      id: z.string().cuid(),
+      name: z.string().min(1).max(100).optional(),
+      description: z.string().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      
+      return await ctx.prisma.project.update({
+        where: { id },
+        data: data
+      });
+    }),
+  
+  // Delete project
+  delete: publicProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.prisma.project.delete({
+        where: { id: input.id }
+      });
+    }),
+  
+  // Get project statistics
+  getStats: publicProcedure
+    .query(async ({ ctx }) => {
+      const [totalProjects, totalMessages, totalFragments] = await Promise.all([
+        ctx.prisma.project.count(),
+        ctx.prisma.message.count(),
+        ctx.prisma.fragment.count()
+      ]);
+      
+      return {
+        totalProjects,
+        totalMessages,
+        totalFragments,
+        averageMessagesPerProject: totalMessages / Math.max(totalProjects, 1)
+      };
+    })
+});
+```
+
+### Messages Router
+
+```typescript src/trpc/routers/messages.ts
+import { router, publicProcedure } from '../trpc';
+import { z } from 'zod';
+import { observable } from '@trpc/server/observable';
+import { EventEmitter } from 'events';
+
+// Event emitter for real-time updates
+const messageEvents = new EventEmitter();
+
+export const messagesRouter = router({
+  // Get messages for a project
+  getByProject: publicProcedure
+    .input(z.object({ 
+      projectId: z.string().cuid(),
+      cursor: z.string().optional(),
+      limit: z.number().min(1).max(100).default(50)
+    }))
+    .query(async ({ ctx, input }) => {
+      const messages = await ctx.prisma.message.findMany({
+        where: { projectId: input.projectId },
+        cursor: input.cursor ? { id: input.cursor } : undefined,
+        take: input.limit + 1, // +1 to check if there's a next page
+        orderBy: { createdAt: 'asc' },
+        include: {
+          fragments: true
+        }
+      });
+      
+      let nextCursor: string | undefined = undefined;
+      if (messages.length > input.limit) {
+        const nextItem = messages.pop();
+        nextCursor = nextItem!.id;
+      }
+      
+      return {
+        messages,
+        nextCursor
+      };
+    }),
+  
+  // Create new message
+  create: publicProcedure
+    .input(z.object({
+      projectId: z.string().cuid(),
+      content: z.string().min(1),
+      role: z.enum(['USER', 'ASSISTANT']),
+      type: z.enum(['RESULT', 'ERROR']).default('RESULT')
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const message = await ctx.prisma.message.create({
+        data: input,
+        include: {
+          fragments: true
+        }
+      });
+      
+      // Emit real-time event
+      messageEvents.emit('messageCreated', {
+        projectId: input.projectId,
+        message
+      });
+      
+      return message;
+    }),
+  
+  // Update message
+  update: publicProcedure
+    .input(z.object({
+      id: z.string().cuid(),
+      content: z.string().min(1).optional(),
+      type: z.enum(['RESULT', 'ERROR']).optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      
+      const message = await ctx.prisma.message.update({
+        where: { id },
+        data: data,
+        include: {
+          fragments: true
+        }
+      });
+      
+      // Emit real-time event
+      messageEvents.emit('messageUpdated', {
+        projectId: message.projectId,
+        message
+      });
+      
+      return message;
+    }),
+  
+  // Delete message
+  delete: publicProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const message = await ctx.prisma.message.delete({
+        where: { id: input.id }
+      });
+      
+      // Emit real-time event
+      messageEvents.emit('messageDeleted', {
+        projectId: message.projectId,
+        messageId: message.id
+      });
+      
+      return message;
+    }),
+  
+  // Real-time subscription for project messages
+  onMessageChange: publicProcedure
+    .input(z.object({ projectId: z.string().cuid() }))
+    .subscription(({ input }) => {
+      return observable<{
+        type: 'created' | 'updated' | 'deleted';
+        message?: any;
+        messageId?: string;
+      }>((emit) => {
+        const onCreated = (data: any) => {
+          if (data.projectId === input.projectId) {
+            emit.next({ type: 'created', message: data.message });
+          }
+        };
+        
+        const onUpdated = (data: any) => {
+          if (data.projectId === input.projectId) {
+            emit.next({ type: 'updated', message: data.message });
+          }
+        };
+        
+        const onDeleted = (data: any) => {
+          if (data.projectId === input.projectId) {
+            emit.next({ type: 'deleted', messageId: data.messageId });
+          }
+        };
+        
+        messageEvents.on('messageCreated', onCreated);
+        messageEvents.on('messageUpdated', onUpdated);
+        messageEvents.on('messageDeleted', onDeleted);
+        
+        return () => {
+          messageEvents.off('messageCreated', onCreated);
+          messageEvents.off('messageUpdated', onUpdated);
+          messageEvents.off('messageDeleted', onDeleted);
+        };
+      });
+    })
+});
+```
+
+## Type Safety
+
+### Input Validation
+
+tRPC uses Zod for runtime input validation:
+
+```typescript Input Schemas
+import { z } from 'zod';
+
+// Project schemas
+export const createProjectSchema = z.object({
+  name: z.string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must be less than 100 characters'),
+  description: z.string()
+    .max(500, 'Description must be less than 500 characters')
+    .optional()
+});
+
+export const updateProjectSchema = z.object({
+  id: z.string().cuid('Invalid project ID'),
+  name: z.string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must be less than 100 characters')
+    .optional(),
+  description: z.string()
+    .max(500, 'Description must be less than 500 characters')
+    .optional()
+});
+
+// Message schemas
+export const createMessageSchema = z.object({
+  projectId: z.string().cuid('Invalid project ID'),
+  content: z.string().min(1, 'Content is required'),
+  role: z.enum(['USER', 'ASSISTANT']),
+  type: z.enum(['RESULT', 'ERROR']).default('RESULT')
+});
+```
+
+### Client-Side Usage
+
+```typescript Client Usage
+import { trpc } from '@/trpc/client';
+
+function ProjectList() {
+  // Fully typed query
+  const { data: projects, isLoading, error } = trpc.projects.getAll.useQuery();
+  
+  // Fully typed mutation
+  const createProject = trpc.projects.create.useMutation({
+    onSuccess: (newProject) => {
+      // newProject is fully typed
+      console.log('Created project:', newProject.name);
+    },
+    onError: (error) => {
+      // error is fully typed
+      console.error('Error:', error.message);
+    }
+  });
+  
+  const handleCreate = (data: { name: string; description?: string }) => {
+    createProject.mutate(data);
+  };
+  
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  
+  return (
+    <div>
+      {projects?.map(project => (
+        <div key={project.id}>
+          <h3>{project.name}</h3>
+          <p>{project.description}</p>
+          <span>{project._count.messages} messages</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Error Handling
+
+### Server-Side Error Handling
+
+```typescript Error Handling
+import { TRPCError } from '@trpc/server';
+
+export const projectsRouter = router({
+  getById: publicProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const project = await ctx.prisma.project.findUnique({
+          where: { id: input.id },
+          include: { messages: true }
+        });
+        
+        if (!project) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Project not found',
+            cause: new Error(`Project ${input.id} does not exist`)
+          });
+        }
+        
+        return project;
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        
+        // Handle unexpected errors
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An unexpected error occurred',
+          cause: error
+        });
+      }
+    })
+});
+```
+
+### Client-Side Error Handling
+
+```typescript Client Error Handling
+function ProjectDetail({ projectId }: { projectId: string }) {
+  const { data: project, error } = trpc.projects.getById.useQuery(
+    { id: projectId },
+    {
+      retry: (failureCount, error) => {
+        // Don't retry on 404 errors
+        if (error.data?.code === 'NOT_FOUND') {
+          return false;
+        }
+        return failureCount < 3;
+      },
+      onError: (error) => {
+        // Handle different error types
+        switch (error.data?.code) {
+          case 'NOT_FOUND':
+            toast.error('Project not found');
+            break;
+          case 'UNAUTHORIZED':
+            toast.error('You are not authorized to view this project');
+            break;
+          default:
+            toast.error('An error occurred while loading the project');
+        }
+      }
+    }
+  );
+  
+  if (error?.data?.code === 'NOT_FOUND') {
+    return <div>Project not found</div>;
+  }
+  
+  return <div>{/* Project content */}</div>;
+}
+```
+
+## Real-time Features
+
+### WebSocket Subscriptions
+
+```typescript Real-time Usage
+function ProjectMessages({ projectId }: { projectId: string }) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Subscribe to real-time updates
+  trpc.messages.onMessageChange.useSubscription(
+    { projectId },
+    {
+      onData: (data) => {
+        switch (data.type) {
+          case 'created':
+            setMessages(prev => [...prev, data.message]);
+            break;
+          case 'updated':
+            setMessages(prev => prev.map(msg => 
+              msg.id === data.message.id ? data.message : msg
+            ));
+            break;
+          case 'deleted':
+            setMessages(prev => prev.filter(msg => msg.id !== data.messageId));
+            break;
+        }
+      },
+      onError: (error) => {
+        console.error('Subscription error:', error);
+      }
+    }
+  );
+  
+  return (
+    <div>
+      {messages.map(message => (
+        <div key={message.id}>
+          <strong>{message.role}:</strong> {message.content}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Performance Optimization
+
+### Query Optimization
+
+<CodeGroup>
+
+```typescript Infinite Queries
+function MessageList({ projectId }: { projectId: string }) {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading
+  } = trpc.messages.getByProject.useInfiniteQuery(
+    { projectId, limit: 20 },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+    }
+  );
+  
+  const messages = data?.pages.flatMap(page => page.messages) ?? [];
+  
+  return (
+    <div>
+      {messages.map(message => (
+        <MessageItem key={message.id} message={message} />
+      ))}
+      {hasNextPage && (
+        <button
+          onClick={() => fetchNextPage()}
+          disabled={isFetchingNextPage}
+        >
+          {isFetchingNextPage ? 'Loading...' : 'Load More'}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+```typescript Optimistic Updates
+function CreateMessageForm({ projectId }: { projectId: string }) {
+  const utils = trpc.useContext();
+  
+  const createMessage = trpc.messages.create.useMutation({
+    onMutate: async (newMessage) => {
+      // Cancel outgoing queries
+      await utils.messages.getByProject.cancel({ projectId });
+      
+      // Snapshot previous value
+      const previousMessages = utils.messages.getByProject.getData({ projectId });
+      
+      // Optimistically update
+      utils.messages.getByProject.setData({ projectId }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          messages: [...old.messages, {
+            id: 'temp-id',
+            ...newMessage,
+            createdAt: new Date(),
+            fragments: []
+          }]
+        };
+      });
+      
+      return { previousMessages };
+    },
+    onError: (err, newMessage, context) => {
+      // Revert optimistic update on error
+      utils.messages.getByProject.setData(
+        { projectId },
+        context?.previousMessages
+      );
+    },
+    onSettled: () => {
+      // Refetch after mutation
+      utils.messages.getByProject.invalidate({ projectId });
+    }
+  });
+  
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      createMessage.mutate({
+        projectId,
+        content: formData.content,
+        role: 'USER'
+      });
+    }}>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+</CodeGroup>
+
+### Caching Strategy
+
+```typescript Caching Configuration
+import { createTRPCNext } from '@trpc/next';
+
+export const trpc = createTRPCNext<AppRouter>({
+  config() {
+    return {
+      // Default cache configuration
+      queryClient: new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 5 * 60 * 1000, // 5 minutes
+            cacheTime: 10 * 60 * 1000, // 10 minutes
+            retry: 3,
+            retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+          },
+          mutations: {
+            retry: 1,
+          },
+        },
+      }),
+    };
+  },
+});
+```
+
+## Testing
+
+### Router Testing
+
+```typescript Router Tests
+import { createContext } from '../context';
+import { appRouter } from '../routers/_app';
+import { prisma } from '@/lib/prisma';
+
+describe('Projects Router', () => {
+  it('should create a project', async () => {
+    const ctx = await createContext({
+      req: {} as any,
+      res: {} as any,
+    });
+    
+    const caller = appRouter.createCaller(ctx);
+    
+    const input = {
+      name: 'Test Project',
+      description: 'A test project'
+    };
+    
+    const result = await caller.projects.create(input);
+    
+    expect(result.name).toBe(input.name);
+    expect(result.description).toBe(input.description);
+    expect(result.id).toBeDefined();
+  });
+  
+  it('should get project by id', async () => {
+    // Create test project
+    const project = await prisma.project.create({
+      data: {
+        name: 'Test Project',
+        description: 'A test project'
+      }
+    });
+    
+    const ctx = await createContext({
+      req: {} as any,
+      res: {} as any,
+    });
+    
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.projects.getById({ id: project.id });
+    
+    expect(result.id).toBe(project.id);
+    expect(result.name).toBe(project.name);
+  });
+});
+```
+
+### Client Testing
+
+```typescript Client Tests
+import { renderHook, waitFor } from '@testing-library/react';
+import { createTRPCMsw } from 'msw-trpc';
+import { setupServer } from 'msw/node';
+import { trpc } from '@/trpc/client';
+
+const trpcMsw = createTRPCMsw<AppRouter>();
+
+const server = setupServer(
+  trpcMsw.projects.getAll.query(() => {
+    return [
+      {
+        id: '1',
+        name: 'Test Project',
+        description: 'A test project',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { messages: 5 }
+      }
+    ];
+  })
+);
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+test('should fetch projects', async () => {
+  const { result } = renderHook(() => trpc.projects.getAll.useQuery(), {
+    wrapper: TrpcProvider,
+  });
+  
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  
+  expect(result.current.data).toHaveLength(1);
+  expect(result.current.data[0].name).toBe('Test Project');
+});
+```
+
+## Security Considerations
+
+### Input Sanitization
+
+```typescript Security Measures
+import { z } from 'zod';
+
+// Sanitize HTML content
+const sanitizeHtml = (html: string) => {
+  // Use DOMPurify or similar library
+  return DOMPurify.sanitize(html);
+};
+
+// Custom Zod schema for sanitized content
+const sanitizedStringSchema = z.string().transform(sanitizeHtml);
+
+// Usage in router
+export const messagesRouter = router({
+  create: publicProcedure
+    .input(z.object({
+      content: sanitizedStringSchema,
+      // ... other fields
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // input.content is now sanitized
+      return await ctx.prisma.message.create({
+        data: input
+      });
+    })
+});
+```
+
+### Rate Limiting
+
+```typescript Rate Limiting
+import { rateLimit } from '@/lib/rate-limit';
+
+export const protectedProcedure = publicProcedure.use(
+  async ({ ctx, next }) => {
+    // Apply rate limiting
+    const identifier = ctx.req.ip || 'anonymous';
+    const { success } = await rateLimit.limit(identifier);
+    
+    if (!success) {
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many requests, please try again later'
+      });
+    }
+    
+    return next();
+  }
+);
+```
+
+## Monitoring and Logging
+
+### Request Logging
+
+```typescript Request Logging
+import { middleware } from '../trpc';
+
+const loggingMiddleware = middleware(async ({ path, type, next }) => {
+  const start = Date.now();
+  
+  try {
+    const result = await next();
+    
+    console.log(`${type} ${path} - ${Date.now() - start}ms - SUCCESS`);
+    
+    return result;
+  } catch (error) {
+    console.error(`${type} ${path} - ${Date.now() - start}ms - ERROR:`, error);
+    
+    throw error;
+  }
+});
+
+export const loggedProcedure = publicProcedure.use(loggingMiddleware);
+```
+
+### Metrics Collection
+
+```typescript Metrics
+interface APIMetrics {
+  requestCount: number;
+  errorCount: number;
+  averageResponseTime: number;
+  activeConnections: number;
+}
+
+export async function collectAPIMetrics(): Promise<APIMetrics> {
+  // Implement metrics collection
+  return {
+    requestCount: await getRequestCount(),
+    errorCount: await getErrorCount(),
+    averageResponseTime: await getAverageResponseTime(),
+    activeConnections: await getActiveConnections()
+  };
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Development Testing"
+    icon="test-tube"
+    href="/development/testing"
+  >
+    Test your API endpoints and client code
+  </Card>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/development/deployment"
+  >
+    Deploy your API to production
+  </Card>
+</CardGroup>

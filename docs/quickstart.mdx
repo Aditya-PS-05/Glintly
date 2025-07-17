@@ -1,0 +1,130 @@
+---
+title: 'Quickstart'
+description: 'Start building with NovaCraft in under 5 minutes'
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- Node.js 18+ and pnpm
+- PostgreSQL database
+- E2B account for sandboxes
+- OpenAI API key
+
+## Step 1: Clone and Install
+
+<CodeGroup>
+
+```bash Terminal
+git clone https://github.com/your-username/novacraft.git
+cd novacraft
+pnpm install
+```
+
+</CodeGroup>
+
+## Step 2: Environment Setup
+
+Create a `.env.local` file in the root directory:
+
+```env .env.local
+DATABASE_URL="postgresql://username:password@localhost:5432/novacraft"
+OPENAI_API_KEY="your-openai-api-key"
+E2B_API_KEY="your-e2b-api-key"
+INNGEST_EVENT_KEY="your-inngest-event-key"
+INNGEST_SIGNING_KEY="your-inngest-signing-key"
+```
+
+## Step 3: Database Setup
+
+Run the database migrations:
+
+<CodeGroup>
+
+```bash Terminal
+pnpx prisma migrate dev
+pnpx prisma generate
+```
+
+</CodeGroup>
+
+## Step 4: Start Development Servers
+
+You'll need to run both the Next.js app and the Inngest development server:
+
+<CodeGroup>
+
+```bash Terminal (Tab 1)
+pnpm run dev
+```
+
+```bash Terminal (Tab 2)
+pnpm dlx inngest-cli@latest dev
+```
+
+</CodeGroup>
+
+## Step 5: Create Your First Project
+
+1. Open [http://localhost:3000](http://localhost:3000)
+2. Click "Create New Project"
+3. Enter a project name and description
+4. Start chatting with the AI to generate code!
+
+## Example Usage
+
+Try these example prompts to get started:
+
+<AccordionGroup>
+  <Accordion title="Create a Todo App">
+    "Create a simple todo application with React. Include add, delete, and toggle complete functionality with local storage."
+  </Accordion>
+  
+  <Accordion title="Build a Dashboard">
+    "Create a dashboard with charts showing user analytics. Include a sidebar navigation and responsive design."
+  </Accordion>
+  
+  <Accordion title="API with Authentication">
+    "Build a REST API with user authentication, JWT tokens, and protected routes using Express.js."
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/projects"
+  >
+    Learn about projects, messages, and fragments
+  </Card>
+  <Card
+    title="Architecture"
+    icon="blueprint"
+    href="/architecture/overview"
+  >
+    Understand the system architecture
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Explore the API documentation
+  </Card>
+  <Card
+    title="Development Guide"
+    icon="wrench"
+    href="/development/setup"
+  >
+    Set up your development environment
+  </Card>
+</CardGroup>
+
+## Need Help?
+
+- Check our [GitHub Issues](https://github.com/your-username/novacraft/issues)
+- Join our [Discord Community](https://discord.gg/novacraft)
+- Email us at [support@novacraft.dev](mailto:support@novacraft.dev)

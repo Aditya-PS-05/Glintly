@@ -15,6 +15,11 @@ import { useSession } from "@/hooks/use-session"
 import { LogOut, User } from "lucide-react"
 import Link from "next/link"
 
+/**
+ * Renders a user authentication menu with sign-in, sign-up, profile, and sign-out options.
+ *
+ * Displays a loading avatar while authentication state is loading. Shows sign-in and sign-up buttons if the user is not authenticated. When authenticated, presents a dropdown menu with the user's avatar, name, email, a link to the profile page, and a sign-out action.
+ */
 export function UserMenu() {
   const { user, isAuthenticated, isLoading } = useSession()
 

@@ -9,6 +9,11 @@ const registerSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 })
 
+/**
+ * Handles user registration requests by validating input, checking for existing users, hashing the password, and creating a new user record.
+ *
+ * Accepts a POST request with a JSON body containing `name`, `email`, and `password`. Returns a JSON response with the new user's id, name, and email on success, or an error message if registration fails.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json()

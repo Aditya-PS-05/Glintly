@@ -2,12 +2,7 @@ import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
 import { z } from "zod"
-
-const registerSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-})
+import { registerSchema } from "@/lib/validations/auth"
 
 /**
  * Handles user registration requests by validating input, checking for existing users, hashing the password, and creating a new user record.
@@ -25,8 +20,8 @@ export async function POST(request: Request) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "User already exists" },
-        { status: 400 }
+        { error: "User already exists with this email" },
+        { status: 409 }
       )
     }
 
@@ -37,20 +32,32 @@ export async function POST(request: Request) {
         name,
         email,
         password: hashedPassword,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
       }
     })
 
     return NextResponse.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      }
+      success: true,
+      user,
+      message: 'User registered successfully',
     })
   } catch (error) {
     console.error("Registration error:", error)
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.errors[0].message },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to register user" },
       { status: 500 }
     )
   }

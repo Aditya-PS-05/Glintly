@@ -1,22 +1,23 @@
 import { inngest } from "@/inngest/client";
 import prisma from "@/lib/prisma";
-import { baseProcedure, createTRPCRouter } from "@/trpc/init";
+import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { z } from "zod";
 import { generateSlug } from "random-word-slugs";
 import { TRPCError } from "@trpc/server";
 
 export const projectsRouter = createTRPCRouter({
 
-    getOne: baseProcedure
+    getOne: protectedProcedure
         .input(
             z.object({
                 id: z.string().min(1, {message: "Id is required"})
             })
         )
-        .query(async ({input}) => {
+        .query(async ({input, ctx}) => {
             const existingProject = await prisma.project.findUnique({
                 where: {
-                    id: input.id
+                    id: input.id,
+                    userId: ctx.user.id
                 }
             });
 
@@ -26,9 +27,12 @@ export const projectsRouter = createTRPCRouter({
 
             return existingProject;
         }),
-    getMany: baseProcedure
-        .query(async () => {
+    getMany: protectedProcedure
+        .query(async ({ctx}) => {
             const projects = await prisma.project.findMany({
+                where: {
+                    userId: ctx.user.id
+                },
                 orderBy: {
                     updatedAt: "desc"
                 }
@@ -36,7 +40,7 @@ export const projectsRouter = createTRPCRouter({
 
             return projects;
         }),
-    create: baseProcedure
+    create: protectedProcedure
         .input(
             z.object({
                 value: z.string()
@@ -45,12 +49,13 @@ export const projectsRouter = createTRPCRouter({
             }),
         )
 
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
             const createdProject = await prisma.project.create({
                 data: {
                     name: generateSlug(2, {
                         format: "kebab"
                     }),
+                    userId: ctx.user.id,
                     messages: {
                         create: {
                             content: input.value,

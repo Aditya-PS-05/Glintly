@@ -12,6 +12,11 @@ import { Separator } from "@/components/ui/separator"
 import { GitBranch, Mail } from "lucide-react"
 import { toast } from "sonner"
 
+/**
+ * Renders a sign-in page with email/password and OAuth authentication options.
+ *
+ * Provides a user interface for signing in using credentials or third-party providers (Google, GitHub). Displays toast notifications for authentication success or failure and redirects to the home page upon successful sign-in.
+ */
 export default function SignInPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")

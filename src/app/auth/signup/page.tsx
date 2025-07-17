@@ -12,6 +12,13 @@ import { Separator } from "@/components/ui/separator"
 import { GitBranch, Mail } from "lucide-react"
 import { toast } from "sonner"
 
+/**
+ * Renders the user registration page with options for OAuth and credential-based sign-up.
+ *
+ * Provides a form for users to create an account using their name, email, and password, or to sign up via Google or GitHub OAuth providers. Handles form submission, displays success or error notifications, and automatically signs in the user upon successful registration.
+ *
+ * @returns The registration page React element.
+ */
 export default function SignUpPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")

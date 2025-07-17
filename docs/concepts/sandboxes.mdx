@@ -1,0 +1,433 @@
+---
+title: 'Sandboxes'
+description: 'Understanding E2B sandbox environments for code execution'
+---
+
+## What are Sandboxes?
+
+Sandboxes are isolated, secure environments where generated code is executed. NovaCraft uses [E2B](https://e2b.dev) sandboxes to provide safe, containerized environments for running user-generated code.
+
+## Sandbox Features
+
+### Security & Isolation
+- **Containerized environments** prevent code from accessing host system
+- **Network restrictions** limit external access to approved domains
+- **Resource limits** prevent resource exhaustion attacks
+- **Automatic cleanup** removes environments after timeout
+
+### Development Environment
+- **Pre-configured templates** with common tools and runtimes
+- **Package manager support** for installing dependencies
+- **Terminal access** for running commands
+- **File system access** for reading/writing files
+
+## Sandbox Lifecycle
+
+### 1. Creation
+When a user sends a message, a new sandbox is created:
+
+<CodeGroup>
+
+```typescript Sandbox Creation
+const sandboxId = await step.run("get-sandbox-id", async () => {
+  const sandbox = await Sandbox.create("novacraft-nextjs-test");
+  return sandbox.sandboxId;
+});
+```
+
+</CodeGroup>
+
+### 2. Code Execution
+The AI agent executes code in the sandbox:
+
+<CodeGroup>
+
+```typescript Code Execution
+// Write files to sandbox
+await sandbox.files.write("src/App.tsx", appContent);
+await sandbox.files.write("package.json", packageJson);
+
+// Run terminal commands
+await sandbox.commands.run("npm install");
+await sandbox.commands.run("npm run build");
+await sandbox.commands.run("npm start");
+```
+
+</CodeGroup>
+
+### 3. Preview Generation
+A live preview URL is generated:
+
+<CodeGroup>
+
+```typescript Preview URL
+const sandboxUrl = await step.run("get-sandbox-url", async () => {
+  const sandbox = await getSandbox(sandboxId);
+  const host = sandbox.getHost(3000);
+  return `https://${host}`;
+});
+```
+
+</CodeGroup>
+
+### 4. Timeout & Cleanup
+Sandboxes automatically cleanup after inactivity:
+- **2 hours** of inactivity triggers cleanup
+- **Resources are released** back to the pool
+- **Preview URLs** become inactive
+
+## Sandbox Templates
+
+### NovaCraft Template
+
+The default template (`novacraft-nextjs-test`) includes:
+
+<CodeGroup>
+
+```dockerfile E2B Template
+FROM node:18-alpine
+
+# Install common dependencies
+RUN npm install -g pnpm yarn
+
+# Install development tools
+RUN apk add --no-cache git python3 make g++
+
+# Set working directory
+WORKDIR /code
+
+# Copy compilation script
+COPY compile_page.sh /compile_page.sh
+RUN chmod +x /compile_page.sh
+
+# Expose common ports
+EXPOSE 3000 8000 8080
+
+CMD ["/compile_page.sh"]
+```
+
+</CodeGroup>
+
+### Custom Templates
+
+You can create custom templates for specific use cases:
+
+<CodeGroup>
+
+```bash Create Template
+e2b template build --name my-custom-template --path ./my-template
+```
+
+```yaml Template Config (e2b.toml)
+[template]
+name = "my-custom-template"
+dockerfile = "Dockerfile"
+build_args = []
+
+[template.build]
+cmd = "/setup.sh"
+```
+
+</CodeGroup>
+
+## Sandbox Tools
+
+### Terminal Access
+
+Execute commands in the sandbox:
+
+<CodeGroup>
+
+```typescript Terminal Tool
+createTool({
+  name: "terminal",
+  description: "Execute terminal commands in the sandbox",
+  parameters: z.object({
+    command: z.string(),
+  }),
+  handler: async ({ command }, { step }) => {
+    const sandbox = await getSandbox(sandboxId);
+    const result = await sandbox.commands.run(command, {
+      onStdout: (data) => console.log(data),
+      onStderr: (data) => console.error(data),
+    });
+    return result.stdout;
+  }
+});
+```
+
+</CodeGroup>
+
+### File Operations
+
+Read and write files in the sandbox:
+
+<CodeGroup>
+
+```typescript File Tools
+// Write files
+createTool({
+  name: "createOrUpdateFiles",
+  parameters: z.object({
+    files: z.array(z.object({
+      path: z.string(),
+      content: z.string(),
+    }))
+  }),
+  handler: async ({ files }) => {
+    const sandbox = await getSandbox(sandboxId);
+    for (const file of files) {
+      await sandbox.files.write(file.path, file.content);
+    }
+  }
+});
+
+// Read files
+createTool({
+  name: "readFiles",
+  parameters: z.object({
+    files: z.array(z.string()),
+  }),
+  handler: async ({ files }) => {
+    const sandbox = await getSandbox(sandboxId);
+    const contents = [];
+    for (const file of files) {
+      const content = await sandbox.files.read(file);
+      contents.push({ path: file, content });
+    }
+    return contents;
+  }
+});
+```
+
+</CodeGroup>
+
+## Resource Limits
+
+### Compute Resources
+- **CPU**: 2 vCPU cores
+- **Memory**: 2GB RAM
+- **Storage**: 10GB disk space
+- **Network**: 100Mbps bandwidth
+
+### Time Limits
+- **Execution timeout**: 30 seconds per command
+- **Sandbox lifetime**: 2 hours maximum
+- **Idle timeout**: 15 minutes of inactivity
+
+### Usage Quotas
+- **Concurrent sandboxes**: 10 per user
+- **Daily sandbox hours**: 24 hours
+- **Monthly sandbox hours**: 720 hours
+
+## Supported Technologies
+
+### Frontend Frameworks
+
+<CardGroup cols={2}>
+  <Card title="React" icon="react">
+    Create React App, Next.js, Vite
+  </Card>
+  <Card title="Vue" icon="vue">
+    Vue CLI, Nuxt.js, Vite
+  </Card>
+  <Card title="Angular" icon="angular">
+    Angular CLI, Nx workspace
+  </Card>
+  <Card title="Svelte" icon="svelte">
+    SvelteKit, Vite
+  </Card>
+</CardGroup>
+
+### Backend Frameworks
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="nodejs">
+    Express, Fastify, Koa
+  </Card>
+  <Card title="Python" icon="python">
+    Flask, Django, FastAPI
+  </Card>
+  <Card title="Go" icon="go">
+    Gin, Echo, Fiber
+  </Card>
+  <Card title="Rust" icon="rust">
+    Actix, Rocket, Warp
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+### Performance Optimization
+
+<Tip>
+Keep sandbox operations efficient to avoid timeouts and resource limits.
+</Tip>
+
+- **Minimize dependencies** in package.json
+- **Use caching** for repeated operations
+- **Batch file operations** instead of individual writes
+- **Clean up temporary files** regularly
+
+### Error Handling
+
+<CodeGroup>
+
+```typescript Error Handling
+const result = await sandbox.commands.run(command, {
+  onStdout: (data) => buffers.stdout += data,
+  onStderr: (data) => buffers.stderr += data,
+  timeout: 30000 // 30 second timeout
+});
+
+if (result.exitCode !== 0) {
+  throw new Error(`Command failed: ${buffers.stderr}`);
+}
+```
+
+</CodeGroup>
+
+### Security Considerations
+
+- **Validate user input** before executing commands
+- **Sanitize file paths** to prevent directory traversal
+- **Limit network access** to required domains only
+- **Monitor resource usage** to prevent abuse
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Sandbox Creation Failed">
+    **Possible causes:**
+    - E2B API key is invalid
+    - Template doesn't exist
+    - Quota limits exceeded
+    
+    **Solutions:**
+    - Verify API key configuration
+    - Check template name and availability
+    - Monitor usage quotas
+  </Accordion>
+  
+  <Accordion title="Command Timeout">
+    **Possible causes:**
+    - Command takes too long to execute
+    - Infinite loops in code
+    - Network operations hanging
+    
+    **Solutions:**
+    - Optimize slow operations
+    - Add proper error handling
+    - Use shorter timeouts for testing
+  </Accordion>
+  
+  <Accordion title="File Not Found">
+    **Possible causes:**
+    - Incorrect file path
+    - File wasn't created successfully
+    - Permission issues
+    
+    **Solutions:**
+    - Verify file paths are correct
+    - Check file creation logs
+    - Ensure proper permissions
+  </Accordion>
+  
+  <Accordion title="Preview Not Loading">
+    **Possible causes:**
+    - Application failed to start
+    - Wrong port configuration
+    - Build errors
+    
+    **Solutions:**
+    - Check application logs
+    - Verify port 3000 is used
+    - Review build output
+  </Accordion>
+</AccordionGroup>
+
+### Debug Commands
+
+<CodeGroup>
+
+```bash List Sandboxes
+e2b sandbox list
+```
+
+```bash Check Sandbox Status
+e2b sandbox get <sandbox-id>
+```
+
+```bash View Sandbox Logs
+e2b sandbox logs <sandbox-id>
+```
+
+```bash Connect to Sandbox
+e2b sandbox connect <sandbox-id>
+```
+
+</CodeGroup>
+
+## Monitoring and Analytics
+
+### Usage Metrics
+- **Sandbox creation rate**
+- **Average execution time**
+- **Error rates by command**
+- **Resource utilization**
+
+### Performance Monitoring
+- **Command execution latency**
+- **Memory usage patterns**
+- **CPU utilization**
+- **Network bandwidth usage**
+
+## Advanced Features
+
+### Custom Networking
+
+<CodeGroup>
+
+```typescript Custom Ports
+const sandbox = await Sandbox.create("novacraft-nextjs-test", {
+  ports: [3000, 8080, 5432]
+});
+
+const webHost = sandbox.getHost(3000);
+const apiHost = sandbox.getHost(8080);
+```
+
+</CodeGroup>
+
+### Environment Variables
+
+<CodeGroup>
+
+```typescript Environment Setup
+await sandbox.commands.run("export NODE_ENV=production");
+await sandbox.commands.run("export PORT=3000");
+await sandbox.commands.run("npm start");
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Architecture"
+    icon="blueprint"
+    href="/architecture/overview"
+  >
+    Learn about system architecture
+  </Card>
+  <Card
+    title="Development Setup"
+    icon="wrench"
+    href="/development/setup"
+  >
+    Set up your development environment
+  </Card>
+</CardGroup>

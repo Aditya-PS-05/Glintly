@@ -1,0 +1,245 @@
+---
+title: 'Installation'
+description: 'Complete installation guide for NovaCraft'
+---
+
+## System Requirements
+
+- **Node.js**: Version 18.0.0 or higher
+- **Package Manager**: pnpm (recommended) or npm
+- **Database**: PostgreSQL 13+
+- **Operating System**: macOS, Linux, or Windows with WSL2
+
+## Required Services
+
+Before installing NovaCraft, you'll need accounts and API keys for:
+
+### E2B (Code Execution)
+1. Sign up at [e2b.dev](https://e2b.dev)
+2. Create a new API key from your dashboard
+3. Install the E2B CLI: `npm install -g @e2b/cli`
+
+### OpenAI (AI Models)
+1. Create an account at [OpenAI](https://platform.openai.com)
+2. Generate an API key with access to GPT-4
+3. Ensure you have sufficient credits/quota
+
+### Inngest (Background Jobs)
+1. Sign up at [inngest.com](https://inngest.com)
+2. Create a new app and get your event and signing keys
+
+## Installation Steps
+
+### 1. Clone the Repository
+
+<CodeGroup>
+
+```bash HTTPS
+git clone https://github.com/your-username/novacraft.git
+cd novacraft
+```
+
+```bash SSH
+git clone git@github.com:your-username/novacraft.git
+cd novacraft
+```
+
+</CodeGroup>
+
+### 2. Install Dependencies
+
+<CodeGroup>
+
+```bash pnpm (Recommended)
+pnpm install
+```
+
+```bash npm
+npm install
+```
+
+</CodeGroup>
+
+### 3. Environment Configuration
+
+Copy the environment template:
+
+```bash
+cp .env.example .env.local
+```
+
+Configure your `.env.local` file:
+
+```env .env.local
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/novacraft"
+
+# OpenAI
+OPENAI_API_KEY="sk-..."
+
+# E2B
+E2B_API_KEY="your-e2b-api-key"
+
+# Inngest
+INNGEST_EVENT_KEY="your-inngest-event-key"
+INNGEST_SIGNING_KEY="your-inngest-signing-key"
+
+# Next.js
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-nextauth-secret"
+```
+
+### 4. Database Setup
+
+Create your PostgreSQL database:
+
+<CodeGroup>
+
+```bash Local PostgreSQL
+createdb novacraft
+```
+
+```bash Docker
+docker run --name novacraft-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=novacraft -p 5432:5432 -d postgres:15
+```
+
+</CodeGroup>
+
+Run database migrations:
+
+```bash
+pnpx prisma migrate dev
+pnpx prisma generate
+```
+
+### 5. E2B Template Setup
+
+Build the E2B template for code execution:
+
+```bash
+e2b auth login
+e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+```
+
+### 6. Verify Installation
+
+Start the development servers:
+
+<CodeGroup>
+
+```bash Terminal 1 (Next.js)
+pnpm run dev
+```
+
+```bash Terminal 2 (Inngest)
+pnpm dlx inngest-cli@latest dev
+```
+
+</CodeGroup>
+
+Visit [http://localhost:3000](http://localhost:3000) to verify everything is working.
+
+## Production Deployment
+
+### Environment Variables
+
+For production, ensure you have:
+
+```env .env.production
+DATABASE_URL="your-production-database-url"
+OPENAI_API_KEY="your-production-openai-key"
+E2B_API_KEY="your-production-e2b-key"
+INNGEST_EVENT_KEY="your-production-inngest-event-key"
+INNGEST_SIGNING_KEY="your-production-inngest-signing-key"
+NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_SECRET="your-secure-secret"
+```
+
+### Deployment Options
+
+<CardGroup cols={2}>
+  <Card
+    title="Vercel"
+    icon="triangle"
+    href="#vercel-deployment"
+  >
+    Deploy to Vercel with one-click
+  </Card>
+  <Card
+    title="Docker"
+    icon="docker"
+    href="#docker-deployment"
+  >
+    Use Docker for containerized deployment
+  </Card>
+  <Card
+    title="AWS"
+    icon="aws"
+    href="#aws-deployment"
+  >
+    Deploy to AWS with CDK
+  </Card>
+  <Card
+    title="Railway"
+    icon="train"
+    href="#railway-deployment"
+  >
+    Deploy to Railway platform
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Database Connection Failed">
+    - Verify PostgreSQL is running
+    - Check DATABASE_URL format
+    - Ensure database exists
+    - Verify user permissions
+  </Accordion>
+  
+  <Accordion title="E2B Sandbox Creation Failed">
+    - Check E2B_API_KEY is valid
+    - Verify E2B template is built
+    - Ensure sufficient E2B credits
+    - Check network connectivity
+  </Accordion>
+  
+  <Accordion title="OpenAI API Errors">
+    - Verify OPENAI_API_KEY is valid
+    - Check API quota and credits
+    - Ensure GPT-4 access is enabled
+    - Verify rate limits
+  </Accordion>
+  
+  <Accordion title="Inngest Jobs Not Processing">
+    - Check INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY
+    - Verify Inngest dev server is running
+    - Check function registration
+    - Review Inngest dashboard for errors
+  </Accordion>
+</AccordionGroup>
+
+### Debug Commands
+
+```bash
+# Check database connectivity
+pnpx prisma studio
+
+# Test E2B connection
+e2b sandbox list
+
+# View Inngest functions
+pnpm dlx inngest-cli@latest dev --verbose
+```
+
+## Next Steps
+
+Now that you have NovaCraft installed:
+
+1. [Create your first project](/quickstart#step-5-create-your-first-project)
+2. [Learn about core concepts](/concepts/projects)
+3. [Explore the API reference](/api-reference/introduction)
+4. [Set up your development workflow](/development/setup)

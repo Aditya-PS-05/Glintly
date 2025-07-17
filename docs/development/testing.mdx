@@ -1,0 +1,1275 @@
+---
+title: 'Testing Guide'
+description: 'Comprehensive testing strategies for NovaCraft development'
+---
+
+## Overview
+
+NovaCraft employs a comprehensive testing strategy covering unit tests, integration tests, and end-to-end tests. The testing stack includes Vitest for unit testing, React Testing Library for component testing, and Playwright for E2E testing.
+
+## Testing Architecture
+
+<CardGroup cols={3}>
+  <Card
+    title="Unit Testing"
+    icon="test-tube"
+    href="#unit-testing"
+  >
+    Component and utility function testing with Vitest
+  </Card>
+  <Card
+    title="Integration Testing"
+    icon="puzzle-piece"
+    href="#integration-testing"
+  >
+    API routes and database interactions
+  </Card>
+  <Card
+    title="End-to-End Testing"
+    icon="monitor"
+    href="#end-to-end-testing"
+  >
+    Full user workflow testing with Playwright
+  </Card>
+</CardGroup>
+
+## Test Setup
+
+### Vitest Configuration
+
+The main test configuration is in `vitest.config.ts`:
+
+```typescript vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./tests/setup.ts'],
+    include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+    exclude: ['node_modules', 'dist', 'e2e'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      exclude: [
+        'node_modules/',
+        'src/generated/',
+        'tests/',
+        '**/*.d.ts',
+        '**/*.config.js',
+        '**/*.config.ts',
+      ],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+```
+
+### Test Setup File
+
+```typescript tests/setup.ts
+import '@testing-library/jest-dom';
+import { vi } from 'vitest';
+import { setupServer } from 'msw/node';
+import { handlers } from './mocks/handlers';
+
+// Mock server for API calls
+export const server = setupServer(...handlers);
+
+// Start server before all tests
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+
+// Reset handlers after each test
+afterEach(() => server.resetHandlers());
+
+// Clean up after all tests
+afterAll(() => server.close());
+
+// Mock next/router
+vi.mock('next/router', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    pathname: '/',
+    query: {},
+    asPath: '/',
+  }),
+}));
+
+// Mock Inngest client
+vi.mock('@/lib/inngest', () => ({
+  inngest: {
+    send: vi.fn(),
+  },
+}));
+
+// Mock Prisma client
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    project: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    message: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    fragment: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+  },
+}));
+```
+
+## Unit Testing
+
+### Component Testing
+
+<CodeGroup>
+
+```typescript Component Test Example
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { ProjectCard } from '@/components/ProjectCard';
+import { trpc } from '@/trpc/client';
+
+// Mock tRPC
+vi.mock('@/trpc/client', () => ({
+  trpc: {
+    projects: {
+      delete: {
+        useMutation: vi.fn(),
+      },
+    },
+  },
+}));
+
+const mockProject = {
+  id: '1',
+  name: 'Test Project',
+  description: 'A test project',
+  createdAt: new Date('2023-01-01'),
+  updatedAt: new Date('2023-01-01'),
+  _count: { messages: 5 },
+};
+
+describe('ProjectCard', () => {
+  it('renders project information correctly', () => {
+    render(<ProjectCard project={mockProject} />);
+    
+    expect(screen.getByText('Test Project')).toBeInTheDocument();
+    expect(screen.getByText('A test project')).toBeInTheDocument();
+    expect(screen.getByText('5 messages')).toBeInTheDocument();
+  });
+  
+  it('handles delete action', async () => {
+    const mockDelete = vi.fn();
+    const mockMutate = vi.fn();
+    
+    (trpc.projects.delete.useMutation as any).mockReturnValue({
+      mutate: mockMutate,
+      isLoading: false,
+    });
+    
+    render(<ProjectCard project={mockProject} onDelete={mockDelete} />);
+    
+    const deleteButton = screen.getByLabelText('Delete project');
+    fireEvent.click(deleteButton);
+    
+    // Confirm deletion
+    const confirmButton = screen.getByText('Delete');
+    fireEvent.click(confirmButton);
+    
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalledWith({ id: '1' });
+    });
+  });
+  
+  it('shows loading state during deletion', () => {
+    (trpc.projects.delete.useMutation as any).mockReturnValue({
+      mutate: vi.fn(),
+      isLoading: true,
+    });
+    
+    render(<ProjectCard project={mockProject} />);
+    
+    expect(screen.getByText('Deleting...')).toBeInTheDocument();
+  });
+});
+```
+
+```typescript Hook Testing
+import { renderHook, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { useProjectMessages } from '@/hooks/useProjectMessages';
+import { trpc } from '@/trpc/client';
+
+vi.mock('@/trpc/client');
+
+describe('useProjectMessages', () => {
+  it('fetches messages for a project', async () => {
+    const mockMessages = [
+      {
+        id: '1',
+        content: 'Hello',
+        role: 'USER',
+        type: 'RESULT',
+        createdAt: new Date(),
+        fragments: [],
+      },
+    ];
+    
+    (trpc.messages.getByProject.useQuery as any).mockReturnValue({
+      data: { messages: mockMessages, nextCursor: null },
+      isLoading: false,
+      error: null,
+    });
+    
+    const { result } = renderHook(() => useProjectMessages('project-1'));
+    
+    await waitFor(() => {
+      expect(result.current.messages).toEqual(mockMessages);
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+  
+  it('handles error states', async () => {
+    const mockError = new Error('Failed to fetch messages');
+    
+    (trpc.messages.getByProject.useQuery as any).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: mockError,
+    });
+    
+    const { result } = renderHook(() => useProjectMessages('project-1'));
+    
+    await waitFor(() => {
+      expect(result.current.error).toBe(mockError);
+      expect(result.current.messages).toEqual([]);
+    });
+  });
+});
+```
+
+</CodeGroup>
+
+### Utility Function Testing
+
+<CodeGroup>
+
+```typescript Utility Tests
+import { describe, it, expect } from 'vitest';
+import { formatDate, sanitizeInput, validateProjectName } from '@/lib/utils';
+
+describe('formatDate', () => {
+  it('formats date correctly', () => {
+    const date = new Date('2023-01-01T12:00:00Z');
+    const formatted = formatDate(date);
+    
+    expect(formatted).toBe('Jan 1, 2023');
+  });
+  
+  it('handles invalid dates', () => {
+    const formatted = formatDate(new Date('invalid'));
+    
+    expect(formatted).toBe('Invalid Date');
+  });
+});
+
+describe('sanitizeInput', () => {
+  it('removes script tags', () => {
+    const input = '<script>alert("xss")</script>Hello';
+    const sanitized = sanitizeInput(input);
+    
+    expect(sanitized).toBe('Hello');
+  });
+  
+  it('preserves safe HTML', () => {
+    const input = '<p>Hello <strong>world</strong></p>';
+    const sanitized = sanitizeInput(input);
+    
+    expect(sanitized).toBe('<p>Hello <strong>world</strong></p>');
+  });
+});
+
+describe('validateProjectName', () => {
+  it('accepts valid names', () => {
+    expect(validateProjectName('My Project')).toBe(true);
+    expect(validateProjectName('Project-123')).toBe(true);
+  });
+  
+  it('rejects invalid names', () => {
+    expect(validateProjectName('')).toBe(false);
+    expect(validateProjectName('a'.repeat(101))).toBe(false);
+    expect(validateProjectName('<script>')).toBe(false);
+  });
+});
+```
+
+```typescript Agent Function Tests
+import { describe, it, expect, vi } from 'vitest';
+import { processMessage } from '@/lib/agent';
+import { OpenAI } from 'openai';
+
+vi.mock('openai');
+
+describe('processMessage', () => {
+  it('processes user message correctly', async () => {
+    const mockOpenAI = {
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [{
+              message: {
+                content: 'I can help you create a React component.',
+                tool_calls: [{
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'createOrUpdateFiles',
+                    arguments: JSON.stringify({
+                      files: [{
+                        path: 'src/components/Button.tsx',
+                        content: 'export function Button() { return <button>Click me</button>; }'
+                      }]
+                    })
+                  }
+                }]
+              }
+            }]
+          })
+        }
+      }
+    };
+    
+    (OpenAI as any).mockImplementation(() => mockOpenAI);
+    
+    const result = await processMessage({
+      content: 'Create a button component',
+      role: 'USER',
+      projectId: 'project-1'
+    });
+    
+    expect(result.response).toBe('I can help you create a React component.');
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0].function.name).toBe('createOrUpdateFiles');
+  });
+  
+  it('handles OpenAI API errors', async () => {
+    const mockOpenAI = {
+      chat: {
+        completions: {
+          create: vi.fn().mockRejectedValue(new Error('API Error'))
+        }
+      }
+    };
+    
+    (OpenAI as any).mockImplementation(() => mockOpenAI);
+    
+    await expect(processMessage({
+      content: 'Create a button component',
+      role: 'USER',
+      projectId: 'project-1'
+    })).rejects.toThrow('API Error');
+  });
+});
+```
+
+</CodeGroup>
+
+## Integration Testing
+
+### API Route Testing
+
+<CodeGroup>
+
+```typescript tRPC Router Tests
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createContext } from '@/trpc/context';
+import { appRouter } from '@/trpc/routers/_app';
+import { prisma } from '@/lib/prisma';
+import { TRPCError } from '@trpc/server';
+
+describe('Projects Router', () => {
+  let ctx: Awaited<ReturnType<typeof createContext>>;
+  let caller: ReturnType<typeof appRouter.createCaller>;
+  
+  beforeEach(async () => {
+    ctx = await createContext({
+      req: {} as any,
+      res: {} as any,
+    });
+    caller = appRouter.createCaller(ctx);
+  });
+  
+  it('creates a project successfully', async () => {
+    const input = {
+      name: 'Test Project',
+      description: 'A test project'
+    };
+    
+    const result = await caller.projects.create(input);
+    
+    expect(result.name).toBe(input.name);
+    expect(result.description).toBe(input.description);
+    expect(result.id).toBeDefined();
+  });
+  
+  it('gets all projects', async () => {
+    // Create test projects
+    await prisma.project.createMany({
+      data: [
+        { name: 'Project 1', description: 'Description 1' },
+        { name: 'Project 2', description: 'Description 2' },
+      ]
+    });
+    
+    const result = await caller.projects.getAll();
+    
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe('Project 1');
+    expect(result[1].name).toBe('Project 2');
+  });
+  
+  it('throws error for non-existent project', async () => {
+    await expect(
+      caller.projects.getById({ id: 'non-existent-id' })
+    ).rejects.toThrow(TRPCError);
+  });
+  
+  it('deletes project and cascades to messages', async () => {
+    // Create project with messages
+    const project = await prisma.project.create({
+      data: {
+        name: 'Test Project',
+        messages: {
+          create: [
+            { content: 'Hello', role: 'USER', type: 'RESULT' },
+            { content: 'Hi there', role: 'ASSISTANT', type: 'RESULT' }
+          ]
+        }
+      }
+    });
+    
+    await caller.projects.delete({ id: project.id });
+    
+    // Verify project is deleted
+    const deletedProject = await prisma.project.findUnique({
+      where: { id: project.id }
+    });
+    expect(deletedProject).toBeNull();
+    
+    // Verify messages are also deleted (cascade)
+    const messages = await prisma.message.findMany({
+      where: { projectId: project.id }
+    });
+    expect(messages).toHaveLength(0);
+  });
+});
+```
+
+```typescript Database Integration Tests
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { prisma } from '@/lib/prisma';
+
+describe('Database Integration', () => {
+  beforeEach(async () => {
+    // Clean up database before each test
+    await prisma.fragment.deleteMany();
+    await prisma.message.deleteMany();
+    await prisma.project.deleteMany();
+  });
+  
+  afterEach(async () => {
+    // Clean up after each test
+    await prisma.fragment.deleteMany();
+    await prisma.message.deleteMany();
+    await prisma.project.deleteMany();
+  });
+  
+  it('creates project with messages and fragments', async () => {
+    const project = await prisma.project.create({
+      data: {
+        name: 'Test Project',
+        description: 'A test project',
+        messages: {
+          create: [
+            {
+              content: 'Create a button component',
+              role: 'USER',
+              type: 'RESULT'
+            },
+            {
+              content: 'I\'ll create a button for you',
+              role: 'ASSISTANT',
+              type: 'RESULT',
+              fragments: {
+                create: [
+                  {
+                    sandboxUrl: 'https://sandbox.example.com/abc123',
+                    fileContent: 'export function Button() { return <button>Click me</button>; }'
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      include: {
+        messages: {
+          include: {
+            fragments: true
+          }
+        }
+      }
+    });
+    
+    expect(project.name).toBe('Test Project');
+    expect(project.messages).toHaveLength(2);
+    expect(project.messages[1].fragments).toHaveLength(1);
+    expect(project.messages[1].fragments[0].sandboxUrl).toBe('https://sandbox.example.com/abc123');
+  });
+  
+  it('handles database constraints', async () => {
+    const project = await prisma.project.create({
+      data: { name: 'Test Project' }
+    });
+    
+    // Try to create message with invalid project ID
+    await expect(
+      prisma.message.create({
+        data: {
+          content: 'Test message',
+          role: 'USER',
+          type: 'RESULT',
+          projectId: 'invalid-project-id'
+        }
+      })
+    ).rejects.toThrow();
+  });
+});
+```
+
+</CodeGroup>
+
+### Mock Service Worker (MSW)
+
+<CodeGroup>
+
+```typescript MSW Handlers
+import { rest } from 'msw';
+
+export const handlers = [
+  // Mock OpenAI API
+  rest.post('https://api.openai.com/v1/chat/completions', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        choices: [{
+          message: {
+            content: 'I can help you with that!',
+            tool_calls: []
+          }
+        }]
+      })
+    );
+  }),
+  
+  // Mock E2B API
+  rest.post('https://api.e2b.dev/sandboxes', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        id: 'sandbox-123',
+        url: 'https://sandbox.e2b.dev/sandbox-123',
+        status: 'running'
+      })
+    );
+  }),
+  
+  // Mock Inngest API
+  rest.post('https://inn.gs/v1/events', (req, res, ctx) => {
+    return res(
+      ctx.json({
+        ids: ['event-123'],
+        status: 'ok'
+      })
+    );
+  }),
+];
+```
+
+```typescript tRPC MSW Setup
+import { createTRPCMsw } from 'msw-trpc';
+import { setupServer } from 'msw/node';
+import type { AppRouter } from '@/trpc/routers/_app';
+
+const trpcMsw = createTRPCMsw<AppRouter>();
+
+export const server = setupServer(
+  trpcMsw.projects.getAll.query(() => {
+    return [
+      {
+        id: '1',
+        name: 'Test Project 1',
+        description: 'First test project',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { messages: 3 }
+      },
+      {
+        id: '2',
+        name: 'Test Project 2',
+        description: 'Second test project',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { messages: 1 }
+      }
+    ];
+  }),
+  
+  trpcMsw.projects.getById.query((req, res, ctx) => {
+    const { id } = req.input;
+    
+    if (id === 'non-existent') {
+      return res(
+        ctx.status(404),
+        ctx.json({ message: 'Project not found' })
+      );
+    }
+    
+    return {
+      id,
+      name: 'Test Project',
+      description: 'A test project',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      messages: []
+    };
+  }),
+  
+  trpcMsw.messages.create.mutation(() => {
+    return {
+      id: 'new-message-id',
+      content: 'New message',
+      role: 'USER',
+      type: 'RESULT',
+      createdAt: new Date(),
+      projectId: 'project-1',
+      fragments: []
+    };
+  })
+);
+```
+
+</CodeGroup>
+
+## End-to-End Testing
+
+### Playwright Configuration
+
+<CodeGroup>
+
+```typescript playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+  ],
+  webServer: {
+    command: 'pnpm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+```typescript Global Setup
+import { test as setup } from '@playwright/test';
+import { prisma } from '@/lib/prisma';
+
+// Global setup file
+setup('setup database', async () => {
+  // Clean up database
+  await prisma.fragment.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.project.deleteMany();
+  
+  // Create test data
+  await prisma.project.create({
+    data: {
+      id: 'test-project-1',
+      name: 'E2E Test Project',
+      description: 'Project for E2E testing',
+      messages: {
+        create: [
+          {
+            content: 'Hello, create a button component',
+            role: 'USER',
+            type: 'RESULT'
+          }
+        ]
+      }
+    }
+  });
+});
+```
+
+</CodeGroup>
+
+### E2E Test Examples
+
+<CodeGroup>
+
+```typescript Project Management Tests
+import { test, expect } from '@playwright/test';
+
+test.describe('Project Management', () => {
+  test('creates a new project', async ({ page }) => {
+    await page.goto('/');
+    
+    // Click create project button
+    await page.click('[data-testid="create-project-btn"]');
+    
+    // Fill project form
+    await page.fill('[data-testid="project-name"]', 'My New Project');
+    await page.fill('[data-testid="project-description"]', 'This is a test project');
+    
+    // Submit form
+    await page.click('[data-testid="submit-project"]');
+    
+    // Verify project was created
+    await expect(page.locator('[data-testid="project-card"]')).toContainText('My New Project');
+    await expect(page.locator('[data-testid="project-card"]')).toContainText('This is a test project');
+  });
+  
+  test('deletes a project', async ({ page }) => {
+    await page.goto('/');
+    
+    // Find project card and click delete
+    await page.click('[data-testid="project-card"] [data-testid="delete-btn"]');
+    
+    // Confirm deletion
+    await page.click('[data-testid="confirm-delete"]');
+    
+    // Verify project is deleted
+    await expect(page.locator('[data-testid="project-card"]')).not.toBeVisible();
+  });
+  
+  test('navigates to project detail', async ({ page }) => {
+    await page.goto('/');
+    
+    // Click on project card
+    await page.click('[data-testid="project-card"]');
+    
+    // Verify navigation to project detail
+    await expect(page).toHaveURL(/\/projects\/test-project-1/);
+    await expect(page.locator('h1')).toContainText('E2E Test Project');
+  });
+});
+```
+
+```typescript Message Flow Tests
+import { test, expect } from '@playwright/test';
+
+test.describe('Message Flow', () => {
+  test('sends a message and receives response', async ({ page }) => {
+    await page.goto('/projects/test-project-1');
+    
+    // Type message
+    await page.fill('[data-testid="message-input"]', 'Create a React component');
+    
+    // Send message
+    await page.click('[data-testid="send-message"]');
+    
+    // Verify user message appears
+    await expect(page.locator('[data-testid="message"][data-role="user"]')).toContainText('Create a React component');
+    
+    // Wait for AI response
+    await expect(page.locator('[data-testid="message"][data-role="assistant"]')).toBeVisible({ timeout: 30000 });
+    
+    // Verify AI response
+    const aiMessage = page.locator('[data-testid="message"][data-role="assistant"]').last();
+    await expect(aiMessage).toContainText('I can help you');
+  });
+  
+  test('displays code fragments', async ({ page }) => {
+    await page.goto('/projects/test-project-1');
+    
+    // Send message that generates code
+    await page.fill('[data-testid="message-input"]', 'Create a button component');
+    await page.click('[data-testid="send-message"]');
+    
+    // Wait for response with fragment
+    await expect(page.locator('[data-testid="code-fragment"]')).toBeVisible({ timeout: 30000 });
+    
+    // Verify fragment link
+    const fragmentLink = page.locator('[data-testid="sandbox-link"]');
+    await expect(fragmentLink).toBeVisible();
+    await expect(fragmentLink).toHaveAttribute('href', /sandbox\.e2b\.dev/);
+  });
+  
+  test('handles error messages', async ({ page }) => {
+    // Mock API error
+    await page.route('**/api/trpc/messages.create*', route => {
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Internal Server Error' })
+      });
+    });
+    
+    await page.goto('/projects/test-project-1');
+    
+    // Send message
+    await page.fill('[data-testid="message-input"]', 'Test message');
+    await page.click('[data-testid="send-message"]');
+    
+    // Verify error message
+    await expect(page.locator('[data-testid="error-message"]')).toContainText('Failed to send message');
+  });
+});
+```
+
+</CodeGroup>
+
+### Visual Regression Testing
+
+<CodeGroup>
+
+```typescript Visual Tests
+import { test, expect } from '@playwright/test';
+
+test.describe('Visual Regression', () => {
+  test('homepage layout', async ({ page }) => {
+    await page.goto('/');
+    
+    // Wait for content to load
+    await expect(page.locator('[data-testid="project-list"]')).toBeVisible();
+    
+    // Take screenshot
+    await expect(page).toHaveScreenshot('homepage.png');
+  });
+  
+  test('project detail layout', async ({ page }) => {
+    await page.goto('/projects/test-project-1');
+    
+    // Wait for messages to load
+    await expect(page.locator('[data-testid="message-list"]')).toBeVisible();
+    
+    // Take screenshot
+    await expect(page).toHaveScreenshot('project-detail.png');
+  });
+  
+  test('responsive design', async ({ page }) => {
+    // Test mobile viewport
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    
+    await expect(page.locator('[data-testid="mobile-nav"]')).toBeVisible();
+    await expect(page).toHaveScreenshot('mobile-homepage.png');
+    
+    // Test tablet viewport
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto('/');
+    
+    await expect(page).toHaveScreenshot('tablet-homepage.png');
+  });
+});
+```
+
+```typescript Performance Tests
+import { test, expect } from '@playwright/test';
+
+test.describe('Performance', () => {
+  test('page load performance', async ({ page }) => {
+    const response = await page.goto('/');
+    
+    // Verify response time
+    expect(response?.status()).toBe(200);
+    
+    // Measure core web vitals
+    const vitals = await page.evaluate(() => {
+      return new Promise((resolve) => {
+        new PerformanceObserver((list) => {
+          const entries = list.getEntries();
+          const vitals = {};
+          
+          entries.forEach((entry) => {
+            if (entry.name === 'FCP') {
+              vitals.fcp = entry.value;
+            } else if (entry.name === 'LCP') {
+              vitals.lcp = entry.value;
+            } else if (entry.name === 'FID') {
+              vitals.fid = entry.value;
+            }
+          });
+          
+          resolve(vitals);
+        }).observe({ entryTypes: ['measure'] });
+      });
+    });
+    
+    // Assert performance metrics
+    expect(vitals.fcp).toBeLessThan(2000); // FCP < 2s
+    expect(vitals.lcp).toBeLessThan(2500); // LCP < 2.5s
+  });
+  
+  test('message sending performance', async ({ page }) => {
+    await page.goto('/projects/test-project-1');
+    
+    // Start performance measurement
+    await page.evaluate(() => performance.mark('message-start'));
+    
+    // Send message
+    await page.fill('[data-testid="message-input"]', 'Quick test message');
+    await page.click('[data-testid="send-message"]');
+    
+    // Wait for response
+    await expect(page.locator('[data-testid="message"][data-role="assistant"]')).toBeVisible();
+    
+    // End performance measurement
+    const duration = await page.evaluate(() => {
+      performance.mark('message-end');
+      performance.measure('message-duration', 'message-start', 'message-end');
+      const measure = performance.getEntriesByName('message-duration')[0];
+      return measure.duration;
+    });
+    
+    // Assert response time
+    expect(duration).toBeLessThan(30000); // Response < 30s
+  });
+});
+```
+
+</CodeGroup>
+
+## Test Data Management
+
+### Test Database Setup
+
+<CodeGroup>
+
+```typescript Database Seeding
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export async function seedTestData() {
+  // Clean existing data
+  await prisma.fragment.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.project.deleteMany();
+  
+  // Create test projects
+  const projects = await prisma.project.createMany({
+    data: [
+      {
+        id: 'test-project-1',
+        name: 'E2E Test Project',
+        description: 'Project for E2E testing'
+      },
+      {
+        id: 'test-project-2',
+        name: 'Unit Test Project',
+        description: 'Project for unit testing'
+      }
+    ]
+  });
+  
+  // Create test messages
+  await prisma.message.createMany({
+    data: [
+      {
+        id: 'test-message-1',
+        content: 'Hello, create a button component',
+        role: 'USER',
+        type: 'RESULT',
+        projectId: 'test-project-1'
+      },
+      {
+        id: 'test-message-2',
+        content: 'I\'ll create a button component for you',
+        role: 'ASSISTANT',
+        type: 'RESULT',
+        projectId: 'test-project-1'
+      }
+    ]
+  });
+  
+  // Create test fragments
+  await prisma.fragment.create({
+    data: {
+      id: 'test-fragment-1',
+      sandboxUrl: 'https://sandbox.e2b.dev/test-123',
+      fileContent: 'export function Button() { return <button>Click me</button>; }',
+      messageId: 'test-message-2'
+    }
+  });
+}
+```
+
+```typescript Fixture Management
+import { test as base } from '@playwright/test';
+import { seedTestData } from './seed';
+
+export const test = base.extend<{
+  seedData: void;
+}>({
+  seedData: async ({}, use) => {
+    await seedTestData();
+    await use();
+  }
+});
+
+// Usage in tests
+test('project flow with seeded data', async ({ page, seedData }) => {
+  await page.goto('/projects/test-project-1');
+  // Test with pre-seeded data
+});
+```
+
+</CodeGroup>
+
+## Test Commands
+
+### Package.json Scripts
+
+```json package.json
+{
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:all": "pnpm test:coverage && pnpm test:e2e",
+    "test:ci": "pnpm test:coverage --reporter=verbose --reporter=junit && pnpm test:e2e --reporter=junit"
+  }
+}
+```
+
+### Test Running Examples
+
+<CodeGroup>
+
+```bash Unit Tests
+# Run all unit tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run specific test file
+pnpm test src/components/Button.test.tsx
+
+# Run tests matching pattern
+pnpm test --grep "Button component"
+
+# Run tests with UI
+pnpm test:ui
+```
+
+```bash E2E Tests
+# Run all E2E tests
+pnpm test:e2e
+
+# Run E2E tests with UI
+pnpm test:e2e:ui
+
+# Run specific E2E test
+pnpm test:e2e tests/project-flow.spec.ts
+
+# Run E2E tests in headed mode
+pnpm test:e2e:headed
+
+# Run E2E tests on specific browser
+pnpm test:e2e --project=chromium
+```
+
+</CodeGroup>
+
+## CI/CD Testing
+
+### GitHub Actions Configuration
+
+```yaml .github/workflows/test.yml
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: novacraft_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Setup database
+        run: |
+          pnpx prisma migrate deploy
+          pnpx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          
+      - name: Run unit tests
+        run: pnpm test:coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+  
+  e2e-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Install Playwright browsers
+        run: pnpx playwright install --with-deps
+        
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+```
+
+## Best Practices
+
+### Test Organization
+
+1. **File Structure**: Keep tests close to source code
+2. **Naming**: Use descriptive test names
+3. **Isolation**: Each test should be independent
+4. **Mocking**: Mock external dependencies
+5. **Performance**: Keep tests fast and focused
+
+### Test Data
+
+1. **Factories**: Use factories for creating test data
+2. **Cleanup**: Clean up after tests
+3. **Isolation**: Don't share state between tests
+4. **Seeding**: Use consistent seed data for E2E tests
+
+### Error Handling
+
+1. **Expected Errors**: Test error scenarios
+2. **Async Errors**: Handle async error testing
+3. **Network Errors**: Mock network failures
+4. **Database Errors**: Test database constraints
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Deployment Guide"
+    icon="rocket"
+    href="/development/deployment"
+  >
+    Deploy your tested application to production
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Test your API endpoints
+  </Card>
+</CardGroup>

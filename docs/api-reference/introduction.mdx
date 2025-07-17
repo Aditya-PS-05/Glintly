@@ -1,0 +1,379 @@
+---
+title: 'API Reference'
+description: 'Complete API documentation for NovaCraft'
+---
+
+## Overview
+
+NovaCraft provides a type-safe API built with tRPC that enables seamless communication between the frontend and backend. All API endpoints are fully typed and validated using Zod schemas.
+
+## Base URL
+
+<CodeGroup>
+
+```typescript Development
+const baseUrl = "http://localhost:3000/api/trpc";
+```
+
+```typescript Production
+const baseUrl = "https://your-domain.com/api/trpc";
+```
+
+</CodeGroup>
+
+## Authentication
+
+Currently, NovaCraft operates without authentication. All API endpoints are publicly accessible. Authentication will be added in future versions.
+
+<Warning>
+In production, ensure you implement proper authentication and authorization before deploying.
+</Warning>
+
+## API Structure
+
+The API is organized into logical routers:
+
+<CardGroup cols={2}>
+  <Card
+    title="Projects"
+    icon="folder"
+    href="/api-reference/projects"
+  >
+    Manage projects and project metadata
+  </Card>
+  <Card
+    title="Messages"
+    icon="message"
+    href="/api-reference/messages"
+  >
+    Handle message creation and retrieval
+  </Card>
+</CardGroup>
+
+## tRPC Client Setup
+
+### React Client
+
+<CodeGroup>
+
+```typescript Client Setup
+import { createTRPCReact } from '@trpc/react-query';
+import { AppRouter } from '@/trpc/routers/_app';
+
+export const trpc = createTRPCReact<AppRouter>();
+
+// In your app
+function App() {
+  return (
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <YourApp />
+    </trpc.Provider>
+  );
+}
+```
+
+</CodeGroup>
+
+### Server-Side Usage
+
+<CodeGroup>
+
+```typescript Server Usage
+import { appRouter } from '@/trpc/routers/_app';
+import { createContext } from '@/trpc/init';
+
+// Direct server-side calls
+const ctx = await createContext({ req, res });
+const result = await appRouter.createCaller(ctx).projects.list();
+```
+
+</CodeGroup>
+
+## Error Handling
+
+### Error Types
+
+<CodeGroup>
+
+```typescript Error Response
+interface TRPCError {
+  code: 'BAD_REQUEST' | 'NOT_FOUND' | 'INTERNAL_SERVER_ERROR';
+  message: string;
+  data?: {
+    code: string;
+    httpStatus: number;
+    stack?: string;
+  };
+}
+```
+
+</CodeGroup>
+
+### Handling Errors
+
+<CodeGroup>
+
+```typescript Error Handling
+import { TRPCError } from '@trpc/server';
+
+// In your component
+const mutation = trpc.projects.create.useMutation({
+  onError: (error) => {
+    if (error.code === 'BAD_REQUEST') {
+      toast.error('Invalid input provided');
+    } else if (error.code === 'NOT_FOUND') {
+      toast.error('Resource not found');
+    } else {
+      toast.error('Something went wrong');
+    }
+  }
+});
+```
+
+</CodeGroup>
+
+## Rate Limiting
+
+Currently, there are no rate limits implemented. In production, consider implementing:
+
+- **Request rate limiting** (e.g., 100 requests per minute)
+- **Message creation limits** (e.g., 10 messages per minute)
+- **Sandbox creation limits** (e.g., 5 sandboxes per hour)
+
+## Data Validation
+
+All API endpoints use Zod for input validation:
+
+<CodeGroup>
+
+```typescript Validation Schema
+import { z } from 'zod';
+
+const CreateProjectSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+});
+
+const SendMessageSchema = z.object({
+  projectId: z.string().uuid(),
+  content: z.string().min(1).max(10000),
+  role: z.enum(['USER', 'ASSISTANT']),
+  type: z.enum(['RESULT', 'ERROR']),
+});
+```
+
+</CodeGroup>
+
+## Response Format
+
+All API responses follow a consistent format:
+
+<CodeGroup>
+
+```typescript Success Response
+{
+  success: true,
+  data: {
+    // Response data
+  }
+}
+```
+
+```typescript Error Response
+{
+  success: false,
+  error: {
+    code: "BAD_REQUEST",
+    message: "Invalid input provided",
+    data: {
+      code: "BAD_REQUEST",
+      httpStatus: 400
+    }
+  }
+}
+```
+
+</CodeGroup>
+
+## Pagination
+
+For endpoints that return lists, pagination is handled automatically:
+
+<CodeGroup>
+
+```typescript Pagination
+const { data, hasNextPage, fetchNextPage } = trpc.projects.list.useInfiniteQuery({
+  limit: 10,
+});
+
+// Manual pagination
+const { data } = trpc.projects.list.useQuery({
+  limit: 10,
+  offset: 0,
+});
+```
+
+</CodeGroup>
+
+## Real-time Updates
+
+Real-time functionality is achieved through React Query's automatic refetching:
+
+<CodeGroup>
+
+```typescript Real-time Updates
+// Auto-refetch every 5 seconds
+const { data } = trpc.messages.getByProject.useQuery(
+  { projectId },
+  { refetchInterval: 5000 }
+);
+
+// Manual invalidation
+const utils = trpc.useUtils();
+utils.messages.getByProject.invalidate({ projectId });
+```
+
+</CodeGroup>
+
+## TypeScript Support
+
+Full TypeScript support is included:
+
+<CodeGroup>
+
+```typescript Type Safety
+import { RouterOutputs } from '@/trpc/routers/_app';
+
+type Project = RouterOutputs['projects']['list'][0];
+type Message = RouterOutputs['messages']['getByProject'][0];
+
+// Fully typed API calls
+const project: Project = await trpc.projects.create.mutate({
+  name: "My Project",
+  description: "A test project"
+});
+```
+
+</CodeGroup>
+
+## Testing
+
+### Unit Testing
+
+<CodeGroup>
+
+```typescript Unit Tests
+import { appRouter } from '@/trpc/routers/_app';
+import { createMockContext } from '@/trpc/test-utils';
+
+describe('Projects API', () => {
+  it('should create a project', async () => {
+    const ctx = createMockContext();
+    const caller = appRouter.createCaller(ctx);
+    
+    const result = await caller.projects.create({
+      name: 'Test Project',
+      description: 'A test project'
+    });
+    
+    expect(result.name).toBe('Test Project');
+  });
+});
+```
+
+</CodeGroup>
+
+### Integration Testing
+
+<CodeGroup>
+
+```typescript Integration Tests
+import { render, screen } from '@testing-library/react';
+import { createTRPCMsw } from 'msw-trpc';
+import { AppRouter } from '@/trpc/routers/_app';
+
+const trpcMsw = createTRPCMsw<AppRouter>();
+
+const handlers = [
+  trpcMsw.projects.list.query(() => {
+    return [
+      { id: '1', name: 'Test Project', createdAt: new Date() }
+    ];
+  }),
+];
+
+// Use in tests with MSW
+```
+
+</CodeGroup>
+
+## Best Practices
+
+### Performance
+
+<Tip>
+Use React Query's caching and background refetching for optimal performance.
+</Tip>
+
+- **Enable caching** for frequently accessed data
+- **Use background refetching** for real-time updates
+- **Implement optimistic updates** for better UX
+- **Batch requests** when possible
+
+### Error Handling
+
+- **Always handle errors** in your components
+- **Provide meaningful error messages** to users
+- **Log errors** for debugging and monitoring
+- **Implement retry logic** for transient failures
+
+### Type Safety
+
+- **Use TypeScript** throughout your application
+- **Leverage tRPC's type inference** for full type safety
+- **Validate inputs** with Zod schemas
+- **Export and reuse types** across your application
+
+## Migration Guide
+
+### From REST to tRPC
+
+If migrating from a REST API:
+
+<CodeGroup>
+
+```typescript Before (REST)
+const response = await fetch('/api/projects', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Test' })
+});
+const project = await response.json();
+```
+
+```typescript After (tRPC)
+const project = await trpc.projects.create.mutate({
+  name: 'Test'
+});
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Projects API"
+    icon="folder"
+    href="/api-reference/projects"
+  >
+    Learn about project management endpoints
+  </Card>
+  <Card
+    title="Messages API"
+    icon="message"
+    href="/api-reference/messages"
+  >
+    Explore message handling endpoints
+  </Card>
+</CardGroup>

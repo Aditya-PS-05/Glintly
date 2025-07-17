@@ -1,16 +1,29 @@
 import { inngest } from "@/inngest/client";
 import prisma from "@/lib/prisma";
-import { baseProcedure, createTRPCRouter } from "@/trpc/init";
+import { protectedProcedure, createTRPCRouter } from "@/trpc/init";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 
 export const messagesRouter = createTRPCRouter({
-    getMany: baseProcedure
+    getMany: protectedProcedure
         .input(
             z.object({
                 projectId: z.string().min(1, {message: "ProjectID is required"})
             }),
         )
-        .query(async ({input}) => {
+        .query(async ({input, ctx}) => {
+            // Verify user owns the project
+            const project = await prisma.project.findUnique({
+                where: {
+                    id: input.projectId,
+                    userId: ctx.user.id
+                }
+            });
+
+            if (!project) {
+                throw new TRPCError({code: "NOT_FOUND", message: "Project not found"});
+            }
+
             const messages = await prisma.message.findMany({
                 where:{
                     projectId: input.projectId
@@ -25,7 +38,7 @@ export const messagesRouter = createTRPCRouter({
 
             return messages;
         }),
-    create: baseProcedure
+    create: protectedProcedure
         .input(
             z.object({
                 value: z.string()
@@ -35,7 +48,19 @@ export const messagesRouter = createTRPCRouter({
             }),
         )
 
-        .mutation(async ({input}) => {
+        .mutation(async ({input, ctx}) => {
+            // Verify user owns the project
+            const project = await prisma.project.findUnique({
+                where: {
+                    id: input.projectId,
+                    userId: ctx.user.id
+                }
+            });
+
+            if (!project) {
+                throw new TRPCError({code: "NOT_FOUND", message: "Project not found"});
+            }
+
             const newMessage = await prisma.message.create({
                 data: {
                     projectId: input.projectId,

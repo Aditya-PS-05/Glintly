@@ -1,5 +1,3 @@
-import { TRPCError } from '@trpc/server'
-
 // Mock Prisma
 const mockPrisma = {
   user: {

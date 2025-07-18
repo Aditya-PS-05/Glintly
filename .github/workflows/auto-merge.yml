@@ -1,0 +1,93 @@
+name: 🤖 Auto-merge Dependabot PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+jobs:
+  auto-merge:
+    name: 🤖 Auto-merge Approved PRs
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]' || contains(github.event.pull_request.labels.*.name, 'auto-merge')
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Check if PR is approved
+        id: check-approval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+            const hasApproval = approvedReviews.length > 0;
+            
+            console.log(`Found ${approvedReviews.length} approved reviews`);
+            return hasApproval;
+
+      - name: 🔍 Check if all checks pass
+        id: check-status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.payload.pull_request.head.sha
+            });
+            
+            const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.payload.pull_request.head.sha
+            });
+            
+            const allChecks = [
+              ...checks.check_runs.map(check => ({ name: check.name, status: check.conclusion })),
+              ...statuses.map(status => ({ name: status.context, status: status.state === 'success' ? 'success' : 'failure' }))
+            ];
+            
+            const failedChecks = allChecks.filter(check => 
+              check.status !== 'success' && check.status !== 'skipped' && check.status !== 'neutral'
+            );
+            
+            console.log(`Total checks: ${allChecks.length}, Failed: ${failedChecks.length}`);
+            return failedChecks.length === 0;
+
+      - name: 🤖 Auto-merge PR
+        if: steps.check-approval.outputs.result == 'true' && steps.check-status.outputs.result == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              merge_method: 'squash'
+            });
+            
+            console.log('✅ PR auto-merged successfully!');
+
+      - name: 📝 Comment on failed auto-merge
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '🤖 Auto-merge failed. Please check that all tests pass and the PR is approved.'
+            });

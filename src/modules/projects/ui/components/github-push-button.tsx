@@ -16,14 +16,29 @@ interface Props {
 
 export const GitHubPushButton = ({ projectId }: Props) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [commitMessage, setCommitMessage] = useState("");
+    const [repoName, setRepoName] = useState("");
+    const [description, setDescription] = useState("");
     const trpc = useTRPC();
     
     const pushToGitHub = useMutation(trpc.projects.pushToGitHub.mutationOptions({
-        onSuccess: () => {
-            toast.success("Successfully pushed to GitHub!");
+        onSuccess: (data) => {
+            toast.success("Successfully created GitHub repository!");
+            toast.success(
+                <div>
+                    <p>Repository created successfully!</p>
+                    <a 
+                        href={data.repoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-500 underline"
+                    >
+                        View on GitHub
+                    </a>
+                </div>
+            );
             setIsOpen(false);
-            setCommitMessage("");
+            setRepoName("");
+            setDescription("");
         },
         onError: (error) => {
             toast.error(error.message);
@@ -31,14 +46,15 @@ export const GitHubPushButton = ({ projectId }: Props) => {
     }));
 
     const handlePush = () => {
-        if (!commitMessage.trim()) {
-            toast.error("Please enter a commit message");
+        if (!repoName.trim()) {
+            toast.error("Please enter a repository name");
             return;
         }
         
         pushToGitHub.mutateAsync({
             projectId,
-            commitMessage: commitMessage.trim()
+            repoName: repoName.trim(),
+            description: description.trim() || undefined
         });
     };
 
@@ -47,23 +63,39 @@ export const GitHubPushButton = ({ projectId }: Props) => {
             <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
                     <GitBranch className="h-4 w-4" />
-                    Push to GitHub
+                    Create GitHub Repo
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Push to GitHub</DialogTitle>
+                    <DialogTitle>Create GitHub Repository</DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                        This will create a new GitHub repository with your generated project files.
+                    </p>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="commit-message" className="text-right">
-                            Commit Message
+                        <Label htmlFor="repo-name" className="text-right">
+                            Repository Name
                         </Label>
                         <Input
-                            id="commit-message"
-                            placeholder="Enter commit message..."
-                            value={commitMessage}
-                            onChange={(e) => setCommitMessage(e.target.value)}
+                            id="repo-name"
+                            placeholder="my-awesome-project"
+                            value={repoName}
+                            onChange={(e) => setRepoName(e.target.value)}
+                            className="col-span-3"
+                            disabled={pushToGitHub.isPending}
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="description" className="text-right">
+                            Description
+                        </Label>
+                        <Input
+                            id="description"
+                            placeholder="A project generated with AI (optional)"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
                             className="col-span-3"
                             disabled={pushToGitHub.isPending}
                         />
@@ -84,7 +116,7 @@ export const GitHubPushButton = ({ projectId }: Props) => {
                         {pushToGitHub.isPending && (
                             <Loader2 className="h-4 w-4 animate-spin" />
                         )}
-                        Push to GitHub
+                        Create Repository
                     </Button>
                 </div>
             </DialogContent>

@@ -1,4 +1,5 @@
 import { NextAuthOptions } from "next-auth"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
@@ -49,6 +50,11 @@ export const authOptions: NextAuthOptions = {
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          scope: "read:user user:email repo",
+        },
+      },
     }),
   ],
   session: {
@@ -58,40 +64,43 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
   },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.sub = user.id;
+      }
+      if (account) {
+        token.accessToken = account.access_token;
+        token.provider = account.provider;
       }
       return token;
     },
     async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
+        session.accessToken = token.accessToken;
+        session.provider = token.provider;
         
-        // Only run database operations if we're not in build/prerendering mode
-        if (typeof window !== 'undefined' || process.env.NODE_ENV !== 'production') {
-          // Ensure user exists in database for OAuth providers
-          if (session.user.email) {
-            try {
-              const existingUser = await prisma.user.findUnique({
-                where: { email: session.user.email }
+        // Ensure user exists in database for OAuth providers
+        if (session.user.email) {
+          try {
+            const existingUser = await prisma.user.findUnique({
+              where: { email: session.user.email }
+            });
+            
+            if (!existingUser) {
+              const newUser = await prisma.user.create({
+                data: {
+                  email: session.user.email,
+                  name: session.user.name,
+                  image: session.user.image,
+                }
               });
-              
-              if (!existingUser) {
-                const newUser = await prisma.user.create({
-                  data: {
-                    email: session.user.email,
-                    name: session.user.name,
-                    image: session.user.image,
-                  }
-                });
-                session.user.id = newUser.id;
-              } else {
-                session.user.id = existingUser.id;
-              }
-            } catch (error) {
-              console.error('Error ensuring user exists:', error);
+              session.user.id = newUser.id;
+            } else {
+              session.user.id = existingUser.id;
             }
+          } catch (error) {
+            console.error('Error ensuring user exists:', error);
           }
         }
       }

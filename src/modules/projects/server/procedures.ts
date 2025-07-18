@@ -4,10 +4,7 @@ import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init
 import { z } from "zod";
 import { generateSlug } from "random-word-slugs";
 import { TRPCError } from "@trpc/server";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import { Octokit } from "@octokit/rest";
 
 export const projectsRouter = createTRPCRouter({
 
@@ -85,7 +82,8 @@ export const projectsRouter = createTRPCRouter({
         .input(
             z.object({
                 projectId: z.string().min(1, { message: "Project ID is required" }),
-                commitMessage: z.string().min(1, { message: "Commit message is required" })
+                repoName: z.string().min(1, { message: "Repository name is required" }),
+                description: z.string().optional()
             })
         )
         .mutation(async ({ input, ctx }) => {
@@ -93,6 +91,16 @@ export const projectsRouter = createTRPCRouter({
                 where: {
                     id: input.projectId,
                     userId: ctx.user.id
+                },
+                include: {
+                    messages: {
+                        include: {
+                            fragment: true
+                        },
+                        orderBy: {
+                            createdAt: 'desc'
+                        }
+                    }
                 }
             });
 
@@ -100,34 +108,72 @@ export const projectsRouter = createTRPCRouter({
                 throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
             }
 
+            // Find the latest fragment with files
+            const latestFragment = project.messages.find(msg => msg.fragment?.files)?.fragment;
+            
+            if (!latestFragment || !latestFragment.files) {
+                throw new TRPCError({ 
+                    code: "NOT_FOUND", 
+                    message: "No generated files found for this project" 
+                });
+            }
+
             try {
-                // Get current working directory
-                const cwd = process.cwd();
-                
-                // Check if we're in a git repository
-                await execAsync('git rev-parse --is-inside-work-tree', { cwd });
-                
-                // Check git status
-                const { stdout: status } = await execAsync('git status --porcelain', { cwd });
-                
-                if (status.trim()) {
-                    // Add all changes
-                    await execAsync('git add .', { cwd });
-                    
-                    // Commit changes
-                    await execAsync(`git commit -m "${input.commitMessage}"`, { cwd });
+                // Get GitHub access token from session
+                if (ctx.session.provider !== 'github' || !ctx.session.accessToken) {
+                    throw new TRPCError({ 
+                        code: "UNAUTHORIZED", 
+                        message: "GitHub account not connected. Please sign in with GitHub." 
+                    });
                 }
+
+                const octokit = new Octokit({
+                    auth: ctx.session.accessToken,
+                });
+
+                // Create a new repository with auto-init
+                const repo = await octokit.rest.repos.createForAuthenticatedUser({
+                    name: input.repoName,
+                    description: input.description || `Generated project: ${project.name}`,
+                    private: false,
+                    auto_init: true,
+                });
+
+                // Wait a moment for repository initialization
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Get the project files from the fragment
+                const files = latestFragment.files as Record<string, string>;
                 
-                // Push to GitHub
-                await execAsync('git push origin main', { cwd });
-                
-                return { success: true, message: "Successfully pushed to GitHub" };
+                // Create/update each file using the contents API
+                for (const [filePath, content] of Object.entries(files)) {
+                    try {
+                        await octokit.rest.repos.createOrUpdateFileContents({
+                            owner: repo.data.owner.login,
+                            repo: repo.data.name,
+                            path: filePath,
+                            message: `Add ${filePath}`,
+                            content: Buffer.from(content).toString('base64'),
+                            branch: 'main',
+                        });
+                    } catch (error) {
+                        console.error(`Error creating file ${filePath}:`, error);
+                        // Continue with other files even if one fails
+                    }
+                }
+
+                return { 
+                    success: true, 
+                    message: "Successfully created GitHub repository!",
+                    repoUrl: repo.data.html_url,
+                    repoName: repo.data.full_name
+                };
                 
             } catch (error) {
-                console.error('GitHub push error:', error);
+                console.error('GitHub repo creation error:', error);
                 throw new TRPCError({ 
                     code: "INTERNAL_SERVER_ERROR", 
-                    message: `Failed to push to GitHub: ${error instanceof Error ? error.message : 'Unknown error'}` 
+                    message: `Failed to create GitHub repository: ${error instanceof Error ? error.message : 'Unknown error'}` 
                 });
             }
         }),

@@ -1,0 +1,178 @@
+name: ⚡ Performance Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize]
+  schedule:
+    - cron: '0 1 * * *' # Daily at 1 AM
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: 🏮 Lighthouse Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build application
+        run: pnpm run build
+        env:
+          NODE_ENV: production
+
+      - name: 🚀 Start application
+        run: pnpm start &
+        env:
+          NODE_ENV: production
+          PORT: 3000
+
+      - name: 🏮 Run Lighthouse audit
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: '.lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: 📊 Comment Lighthouse results
+        uses: thollander/actions-comment-pull-request@v2
+        if: github.event_name == 'pull_request'
+        with:
+          comment_tag: lighthouse
+          filePath: lighthouse-results.json
+
+  bundle-analysis:
+    name: 📦 Bundle Size Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 📊 Analyze bundle size
+        uses: andresz1/size-limit-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Bundle analyzer
+        run: |
+          pnpm add -D @next/bundle-analyzer
+          ANALYZE=true pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: 📊 Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: .next/analyze/
+
+  load-testing:
+    name: 🔄 Load Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build application
+        run: pnpm run build
+        env:
+          NODE_ENV: production
+
+      - name: 🚀 Start application
+        run: pnpm start &
+        env:
+          NODE_ENV: production
+          PORT: 3000
+
+      - name: ⏳ Wait for server
+        run: |
+          timeout 30 bash -c 'until curl -f http://localhost:3000; do sleep 1; done'
+
+      - name: 🔄 Run load tests with Artillery
+        run: |
+          npm install -g artillery
+          artillery quick --count 10 --num 25 http://localhost:3000
+
+      - name: 🔄 Run K6 performance tests
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: performance/load-test.js
+        env:
+          BASE_URL: http://localhost:3000
+
+  performance-monitoring:
+    name: 📊 Performance Monitoring
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📊 Setup performance monitoring
+        run: |
+          echo "## ⚡ Performance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance metrics from this build:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Build time: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Bundle size: To be calculated" >> $GITHUB_STEP_SUMMARY
+          echo "- Lighthouse score: Check artifacts" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📊 Send metrics to monitoring service
+        run: |
+          # Example: Send metrics to DataDog, New Relic, etc.
+          echo "Sending performance metrics to monitoring service..."
+          # curl -X POST "your-monitoring-endpoint" -d "metrics data"

@@ -1,5 +1,4 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
@@ -7,7 +6,6 @@ import bcrypt from "bcryptjs"
 import prisma from "@/lib/prisma"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -60,17 +58,51 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, profile }) {
       if (user) {
-        token.sub = user.id
+        token.sub = user.id;
       }
-      return token
+      return token;
     },
     async session({ session, token }) {
       if (token.sub && session.user) {
-        session.user.id = token.sub
+        session.user.id = token.sub;
+        
+        // Only run database operations if we're not in build/prerendering mode
+        if (typeof window !== 'undefined' || process.env.NODE_ENV !== 'production') {
+          // Ensure user exists in database for OAuth providers
+          if (session.user.email) {
+            try {
+              const existingUser = await prisma.user.findUnique({
+                where: { email: session.user.email }
+              });
+              
+              if (!existingUser) {
+                const newUser = await prisma.user.create({
+                  data: {
+                    email: session.user.email,
+                    name: session.user.name,
+                    image: session.user.image,
+                  }
+                });
+                session.user.id = newUser.id;
+              } else {
+                session.user.id = existingUser.id;
+              }
+            } catch (error) {
+              console.error('Error ensuring user exists:', error);
+            }
+          }
+        }
       }
-      return session
+      return session;
+    },
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
 }

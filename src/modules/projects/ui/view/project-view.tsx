@@ -11,6 +11,7 @@ import { CodeIcon, CrownIcon, EyeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { FileExplorer } from "@/components/file-explorer";
+import { GitHubPushButton } from "../components/github-push-button";
 
 interface Props {
     projectId: string
@@ -62,7 +63,8 @@ export const ProjectView =({projectId}: Props) => {
                                     <CodeIcon /> <span>Code</span>
                                 </TabsTrigger>
                             </TabsList>
-                            <div className="ml-auto flex-items-center gap-x-2">
+                            <div className="ml-auto flex items-center gap-x-2">
+                                <GitHubPushButton projectId={projectId} />
                                 <Button asChild size="sm" value="default" variant="tertiary">
                                     <Link href="pricing">
                                         <CrownIcon /> Upgrade

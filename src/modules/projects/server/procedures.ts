@@ -46,6 +46,41 @@ export const projectsRouter = createTRPCRouter({
 
             return projects;
         }),
+    rename: protectedProcedure
+        .input(
+            z.object({
+                id: z.string().min(1),
+                name: z
+                    .string()
+                    .trim()
+                    .min(1, { message: "Name is required" })
+                    .max(80, { message: "Name is too long" }),
+            }),
+        )
+        .mutation(async ({ input, ctx }) => {
+            const project = await prisma.project.findUnique({
+                where: { id: input.id, userId: ctx.user.id },
+            });
+            if (!project) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+            }
+            return prisma.project.update({
+                where: { id: input.id },
+                data: { name: input.name },
+            });
+        }),
+    delete: protectedProcedure
+        .input(z.object({ id: z.string().min(1) }))
+        .mutation(async ({ input, ctx }) => {
+            const project = await prisma.project.findUnique({
+                where: { id: input.id, userId: ctx.user.id },
+            });
+            if (!project) {
+                throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+            }
+            await prisma.project.delete({ where: { id: input.id } });
+            return { success: true };
+        }),
     create: protectedProcedure
         .input(
             z.object({
@@ -57,7 +92,7 @@ export const projectsRouter = createTRPCRouter({
         )
 
         .mutation(async ({ input, ctx }) => {
-            const rl = checkRateLimit({
+            const rl = await checkRateLimit({
                 key: `project-create:${ctx.user.id}`,
                 ...CREATE_LIMIT,
             });
@@ -113,7 +148,7 @@ export const projectsRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ input, ctx }) => {
-            const rl = checkRateLimit({
+            const rl = await checkRateLimit({
                 key: `gh-push:${ctx.user.id}`,
                 ...PUSH_LIMIT,
             });

@@ -8,9 +8,20 @@ import prisma from "@/lib/prisma";
 import { checkCommand } from "@/lib/sandbox-command-guard";
 
 const MAX_AGENT_ITERATIONS = 15;
-const SANDBOX_COMMAND_TIMEOUT_MS = 60_000;
 const EXPO_URL_WAIT_TIMEOUT_MS = 120_000;
 const EXPO_URL_POLL_MS = 2_000;
+
+const SANDBOX_TIMEOUT_BY_TIER = {
+  FREE: 60_000,
+  PRO: 180_000,
+  TEAM: 300_000,
+} as const;
+
+type PlanTier = keyof typeof SANDBOX_TIMEOUT_BY_TIER;
+
+function resolveTier(raw: unknown): PlanTier {
+  return raw === "PRO" || raw === "TEAM" ? raw : "FREE";
+}
 
 const TEMPLATES = {
   WEB: {
@@ -61,11 +72,35 @@ export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
+    const startedAt = Date.now();
     const projectType = resolveProjectType(event.data.projectType);
     const template = TEMPLATES[projectType];
 
+    const projectMeta = await step.run("load-project-meta", async () => {
+      if (!event.data.projectId) return { userId: null as string | null, tier: "FREE" as PlanTier };
+      const project = await prisma.project.findUnique({
+        where: { id: event.data.projectId as string },
+        include: { user: { select: { planTier: true } } },
+      });
+      return {
+        userId: project?.userId ?? null,
+        tier: resolveTier(project?.user?.planTier),
+      };
+    });
+
+    const sandboxTimeoutMs = SANDBOX_TIMEOUT_BY_TIER[projectMeta.tier];
+    const logCtx = {
+      projectId: event.data.projectId as string | undefined,
+      userId: projectMeta.userId,
+      projectType,
+      template: template.name,
+      tier: projectMeta.tier,
+    };
+    console.info("[code-agent] start", logCtx);
+
     const sandboxId = await step.run("get-sandbox-id", async () => {
       const sandbox = await Sandbox.create(template.name);
+      console.info("[code-agent] sandbox created", { ...logCtx, sandboxId: sandbox.sandboxId });
       return sandbox.sandboxId;
     })
 
@@ -93,7 +128,7 @@ export const codeAgentFunction = inngest.createFunction(
               try {
                 const sandbox = await getSandbox(sandboxId);
                 const result = await sandbox.commands.run(command, {
-                  timeoutMs: SANDBOX_COMMAND_TIMEOUT_MS,
+                  timeoutMs: sandboxTimeoutMs,
                   onStdout: (data: string) => {
                     buffers.stdout += data;
                   },
@@ -204,6 +239,11 @@ export const codeAgentFunction = inngest.createFunction(
 
     const hasSummary = Boolean(result.state.data.summary);
     const hasFiles = Object.keys(result.state.data.files || {}).length > 0;
+    if (!hasSummary) {
+      console.warn("[code-agent] agent finished without summary", { ...logCtx, sandboxId, hasFiles });
+    } else {
+      console.info("[code-agent] agent finished", { ...logCtx, sandboxId, fileCount: Object.keys(result.state.data.files || {}).length });
+    }
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
@@ -251,6 +291,20 @@ export const codeAgentFunction = inngest.createFunction(
         }
       })
     })
+
+    await step.run("record-usage", async () => {
+      if (!projectMeta.userId) return null;
+      return prisma.usageEvent.create({
+        data: {
+          kind: "agent_run",
+          model: "gpt-4",
+          projectType,
+          sandboxMs: Date.now() - startedAt,
+          userId: projectMeta.userId,
+          projectId: (event.data.projectId as string | undefined) ?? null,
+        },
+      });
+    });
 
     return {
       url: sandboxUrl,

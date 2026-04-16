@@ -133,7 +133,7 @@ pnpm dlx inngest-cli@latest dev
 
 Open [http://localhost:3000](http://localhost:3000), sign up, and describe an app.
 
-> **If `.env.example` doesn't exist yet**, see [Environment Variables](#environment-variables) for the full list of keys to set.
+See [Environment Variables](#environment-variables) for a full description of each key.
 
 ### Prerequisites
 
@@ -162,6 +162,9 @@ Glintly reads config from `.env` (local dev) or environment variables (Vercel / 
 | `GOOGLE_CLIENT_SECRET` _(optional)_ | Google OAuth client secret |
 | `INNGEST_EVENT_KEY` _(prod only)_ | Set automatically by the Inngest dev CLI in dev |
 | `INNGEST_SIGNING_KEY` _(prod only)_ | Set automatically by the Inngest dev CLI in dev |
+| `UPSTASH_REDIS_REST_URL` _(optional)_ | Upstash Redis REST URL — enables distributed rate limiting in serverless |
+| `UPSTASH_REDIS_REST_TOKEN` _(optional)_ | Upstash Redis REST token (paired with `UPSTASH_REDIS_REST_URL`) |
+| `NEXT_PUBLIC_APP_URL` _(optional)_ | Absolute URL used by the tRPC browser client (defaults to relative) |
 
 > **Note:** The GitHub OAuth app requests the `public_repo` scope by default. If you need to push to private repos, edit `src/lib/auth.ts:55` to request `repo` instead — but see the [Security Model](#security-model) for tradeoffs.
 
@@ -187,15 +190,19 @@ The schema (`prisma/schema.prisma`) defines five models: `User`, `Account`, `Ses
 The agent runs inside a custom E2B template with a preconfigured Next.js + shadcn/ui scaffold. The `sandbox-templates/` directory contains the Dockerfile and `compile_page.sh` that the E2B CLI uses to build the template.
 
 ```bash
-# One-time: build and publish the template to your E2B account
-cd sandbox-templates
+# One-time: build and publish the web (Next.js) template
+cd sandbox-templates/nextjs
 e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
+
+# One-time: build and publish the mobile (Expo) template
+cd ../expo
+e2b template build --name glintly-expo --cmd "/compile_page.sh"
 
 # Inspect active sandboxes across all your runs
 e2b sandbox list
 ```
 
-The template name `glintly-nextjs` is referenced in `src/inngest/functions.ts:20`. If you publish under a different name, update that string.
+The template names `glintly-nextjs` (web) and `glintly-expo` (mobile) are referenced in `src/inngest/functions.ts`. If you publish under different names, update the `TEMPLATES` record.
 
 ## Usage
 

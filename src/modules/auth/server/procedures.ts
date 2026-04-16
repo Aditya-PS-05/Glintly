@@ -187,6 +187,78 @@ export const authRouter = createTRPCRouter({
       }
     }),
 
+  // List connected OAuth providers
+  getConnections: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await prisma.account.findMany({
+        where: { userId: ctx.user.id },
+        select: { id: true, provider: true },
+      });
+      return accounts;
+    }),
+
+  // Disconnect an OAuth provider (deletes the Account row).
+  // Keeping one provider connected if no password is set keeps the user
+  // from locking themselves out.
+  disconnect: protectedProcedure
+    .input(z.object({ provider: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const user = await prisma.user.findUnique({
+        where: { id: ctx.user.id },
+        select: {
+          password: true,
+          accounts: { select: { id: true, provider: true } },
+        },
+      });
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      const remaining = user.accounts.filter((a) => a.provider !== input.provider);
+      if (!user.password && remaining.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Set a password before disconnecting your last login provider, or you'll be locked out.",
+        });
+      }
+      await prisma.account.deleteMany({
+        where: { userId: ctx.user.id, provider: input.provider },
+      });
+      return { success: true };
+    }),
+
+  // Current month's usage summary for the signed-in user.
+  getUsage: protectedProcedure
+    .query(async ({ ctx }) => {
+      const since = new Date();
+      since.setUTCDate(1);
+      since.setUTCHours(0, 0, 0, 0);
+      const events = await prisma.usageEvent.findMany({
+        where: { userId: ctx.user.id, createdAt: { gte: since } },
+        select: {
+          kind: true,
+          projectType: true,
+          sandboxMs: true,
+          inputTokens: true,
+          outputTokens: true,
+          createdAt: true,
+        },
+      });
+      const totalRuns = events.length;
+      const totalSandboxMs = events.reduce((acc, e) => acc + (e.sandboxMs ?? 0), 0);
+      const totalInputTokens = events.reduce((acc, e) => acc + (e.inputTokens ?? 0), 0);
+      const totalOutputTokens = events.reduce((acc, e) => acc + (e.outputTokens ?? 0), 0);
+      const user = await prisma.user.findUnique({
+        where: { id: ctx.user.id },
+        select: { planTier: true },
+      });
+      return {
+        periodStart: since.toISOString(),
+        planTier: user?.planTier ?? "FREE",
+        totals: { runs: totalRuns, sandboxMs: totalSandboxMs, inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+      };
+    }),
+
   // Change password (protected)
   changePassword: protectedProcedure
     .input(changePasswordSchema)

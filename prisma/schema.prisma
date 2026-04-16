@@ -41,6 +41,12 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum PlanTier {
+  FREE
+  PRO
+  TEAM
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -48,9 +54,11 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  planTier      PlanTier  @default(FREE)
   accounts      Account[]
   sessions      Session[]
   projects      Project[]
+  usageEvents   UsageEvent[]
 }
 
 model VerificationToken {
@@ -77,7 +85,26 @@ model Project {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   messages Message[]
+  usageEvents UsageEvent[]
+}
 
+model UsageEvent {
+  id         String   @id @default(uuid())
+  kind       String   // "agent_run" for now; allows future kinds
+  model      String?
+  inputTokens  Int?
+  outputTokens Int?
+  sandboxMs  Int?
+  projectType ProjectType?
+  createdAt  DateTime @default(now())
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId])
 }
 
 enum MessageRole {

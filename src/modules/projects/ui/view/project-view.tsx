@@ -81,7 +81,7 @@ export const ProjectView = ({ projectId }: Props) => {
                             <div className="ml-auto flex items-center gap-x-2">
                                 <GitHubPushButton projectId={projectId} />
                                 <Button asChild size="sm" value="default" variant="tertiary">
-                                    <Link href="pricing">
+                                    <Link href="/pricing">
                                         <CrownIcon /> Upgrade
                                     </Link>
                                 </Button>

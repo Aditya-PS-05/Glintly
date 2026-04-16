@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "NovaCraft Documentation",
+  "name": "Glintly Documentation",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
@@ -18,12 +18,12 @@
   "topbarLinks": [
     {
       "name": "Support",
-      "url": "mailto:support@novacraft.dev"
+      "url": "mailto:support@glintly.dev"
     }
   ],
   "topbarCtaButton": {
     "name": "Dashboard",
-    "url": "https://novacraft.dev"
+    "url": "https://glintly.dev"
   },
   "tabs": [
     {
@@ -39,12 +39,12 @@
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/your-username/novacraft"
+      "url": "https://github.com/your-username/glintly"
     },
     {
       "name": "Community",
       "icon": "discord",
-      "url": "https://discord.gg/novacraft"
+      "url": "https://discord.gg/glintly"
     }
   ],
   "navigation": [
@@ -93,8 +93,8 @@
     }
   ],
   "footerSocials": {
-    "x": "https://x.com/novacraft",
-    "github": "https://github.com/your-username/novacraft",
-    "linkedin": "https://www.linkedin.com/company/novacraft"
+    "x": "https://x.com/glintly",
+    "github": "https://github.com/your-username/glintly",
+    "linkedin": "https://www.linkedin.com/company/glintly"
   }
 }

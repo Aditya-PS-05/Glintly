@@ -1,11 +1,11 @@
 ---
 title: 'Development Commands'
-description: 'Essential commands for developing with NovaCraft'
+description: 'Essential commands for developing with Glintly'
 ---
 
 ## Package Manager Commands
 
-NovaCraft uses **pnpm** as the preferred package manager for faster installs and better dependency management.
+Glintly uses **pnpm** as the preferred package manager for faster installs and better dependency management.
 
 ### Installation Commands
 
@@ -127,19 +127,19 @@ pnpx prisma migrate status
 
 ```bash PostgreSQL Commands
 # Connect to database
-psql -h localhost -U username -d novacraft
+psql -h localhost -U username -d glintly
 
 # Create database
-createdb novacraft
+createdb glintly
 
 # Drop database (careful!)
-dropdb novacraft
+dropdb glintly
 
 # Backup database
-pg_dump novacraft > backup.sql
+pg_dump glintly > backup.sql
 
 # Restore database
-psql novacraft < backup.sql
+psql glintly < backup.sql
 ```
 
 </CodeGroup>
@@ -152,16 +152,16 @@ psql novacraft < backup.sql
 
 ```bash Template Operations
 # Build sandbox template
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 
 # List available templates
 e2b template list
 
 # Delete template
-e2b template delete novacraft-nextjs-test
+e2b template delete glintly-nextjs
 
 # Update template
-e2b template update novacraft-nextjs-test
+e2b template update glintly-nextjs
 ```
 
 </CodeGroup>
@@ -175,7 +175,7 @@ e2b template update novacraft-nextjs-test
 e2b sandbox list
 
 # Create new sandbox
-e2b sandbox create novacraft-nextjs-test
+e2b sandbox create glintly-nextjs
 
 # Connect to sandbox
 e2b sandbox connect <sandbox-id>
@@ -374,10 +374,10 @@ git commit -m "test: add unit tests for components"
 
 ```bash Docker Development
 # Build development image
-docker build -t novacraft-dev -f Dockerfile.dev .
+docker build -t glintly-dev -f Dockerfile.dev .
 
 # Run development container
-docker run -p 3000:3000 -v $(pwd):/app novacraft-dev
+docker run -p 3000:3000 -v $(pwd):/app glintly-dev
 
 # Use Docker Compose
 docker-compose -f docker-compose.dev.yml up
@@ -463,7 +463,7 @@ e2b sandbox logs <sandbox-id>
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "inngest:dev": "inngest-cli dev",
-    "e2b:build": "e2b template build --name novacraft-nextjs-test --cmd '/compile_page.sh'",
+    "e2b:build": "e2b template build --name glintly-nextjs --cmd '/compile_page.sh'",
     "clean": "rm -rf .next && rm -rf node_modules/.cache",
     "fresh": "pnpm clean && pnpm install"
   }
@@ -480,7 +480,7 @@ e2b sandbox logs <sandbox-id>
 #!/bin/bash
 
 # Start all development services
-echo "Starting NovaCraft development environment..."
+echo "Starting Glintly development environment..."
 
 # Start PostgreSQL if not running
 if ! pgrep -x "postgres" > /dev/null; then
@@ -501,7 +501,7 @@ pnpm run dev
 #!/bin/bash
 
 # Complete development setup
-echo "Setting up NovaCraft development environment..."
+echo "Setting up Glintly development environment..."
 
 # Install dependencies
 pnpm install
@@ -511,7 +511,7 @@ pnpx prisma migrate dev
 pnpx prisma generate
 
 # Build E2B template
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 
 echo "Setup complete! Run 'pnpm run dev' to start development."
 ```
@@ -529,7 +529,7 @@ echo "Setup complete! Run 'pnpm run dev' to start development."
 DEBUG=true pnpm run dev
 
 # Start with specific database
-DATABASE_URL="postgresql://dev:password@localhost:5432/novacraft_dev" pnpm run dev
+DATABASE_URL="postgresql://dev:password@localhost:5432/glintly_dev" pnpm run dev
 
 # Start with mock services
 USE_MOCK_SERVICES=true pnpm run dev
@@ -632,7 +632,7 @@ pnpm run clean
 pnpx prisma migrate reset --force
 pnpm install
 pnpx prisma generate
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 ```
 
 </CodeGroup>

@@ -1,11 +1,11 @@
 ---
 title: 'Testing Guide'
-description: 'Comprehensive testing strategies for NovaCraft development'
+description: 'Comprehensive testing strategies for Glintly development'
 ---
 
 ## Overview
 
-NovaCraft employs a comprehensive testing strategy covering unit tests, integration tests, and end-to-end tests. The testing stack includes Vitest for unit testing, React Testing Library for component testing, and Playwright for E2E testing.
+Glintly employs a comprehensive testing strategy covering unit tests, integration tests, and end-to-end tests. The testing stack includes Vitest for unit testing, React Testing Library for component testing, and Playwright for E2E testing.
 
 ## Testing Architecture
 
@@ -1154,7 +1154,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: novacraft_test
+          POSTGRES_DB: glintly_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -1184,12 +1184,12 @@ jobs:
           pnpx prisma migrate deploy
           pnpx prisma generate
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glintly_test
           
       - name: Run unit tests
         run: pnpm test:coverage
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glintly_test
           
       - name: Upload coverage
         uses: codecov/codecov-action@v3
@@ -1221,7 +1221,7 @@ jobs:
       - name: Run E2E tests
         run: pnpm test:e2e
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/novacraft_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/glintly_test
           
       - name: Upload Playwright report
         uses: actions/upload-artifact@v3

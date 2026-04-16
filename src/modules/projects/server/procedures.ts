@@ -1,10 +1,15 @@
 import { inngest } from "@/inngest/client";
 import prisma from "@/lib/prisma";
-import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { z } from "zod";
 import { generateSlug } from "random-word-slugs";
 import { TRPCError } from "@trpc/server";
 import { Octokit } from "@octokit/rest";
+import { sanitizeFilesForGitHub } from "@/lib/sanitize-paths";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+const CREATE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 };
+const PUSH_LIMIT = { limit: 5, windowMs: 60 * 60 * 1000 };
 
 export const projectsRouter = createTRPCRouter({
 
@@ -51,6 +56,17 @@ export const projectsRouter = createTRPCRouter({
         )
 
         .mutation(async ({ input, ctx }) => {
+            const rl = checkRateLimit({
+                key: `project-create:${ctx.user.id}`,
+                ...CREATE_LIMIT,
+            });
+            if (!rl.allowed) {
+                throw new TRPCError({
+                    code: "TOO_MANY_REQUESTS",
+                    message: "Rate limit exceeded. Try again later.",
+                });
+            }
+
             const createdProject = await prisma.project.create({
                 data: {
                     name: generateSlug(2, {
@@ -77,16 +93,33 @@ export const projectsRouter = createTRPCRouter({
 
             return createdProject;
         }),
-    
+
     pushToGitHub: protectedProcedure
         .input(
             z.object({
                 projectId: z.string().min(1, { message: "Project ID is required" }),
-                repoName: z.string().min(1, { message: "Repository name is required" }),
-                description: z.string().optional()
+                repoName: z
+                    .string()
+                    .min(1, { message: "Repository name is required" })
+                    .max(100)
+                    .regex(/^[A-Za-z0-9._-]+$/, {
+                        message: "Invalid repository name",
+                    }),
+                description: z.string().max(350).optional(),
+                isPrivate: z.boolean().optional().default(true),
             })
         )
         .mutation(async ({ input, ctx }) => {
+            const rl = checkRateLimit({
+                key: `gh-push:${ctx.user.id}`,
+                ...PUSH_LIMIT,
+            });
+            if (!rl.allowed) {
+                throw new TRPCError({
+                    code: "TOO_MANY_REQUESTS",
+                    message: "Rate limit exceeded. Try again later.",
+                });
+            }
             const project = await prisma.project.findUnique({
                 where: {
                     id: input.projectId,
@@ -127,53 +160,71 @@ export const projectsRouter = createTRPCRouter({
                     });
                 }
 
+                const rawFiles = latestFragment.files as Record<string, string>;
+                let sanitized;
+                try {
+                    sanitized = sanitizeFilesForGitHub(rawFiles);
+                } catch (error) {
+                    throw new TRPCError({
+                        code: "BAD_REQUEST",
+                        message: error instanceof Error ? error.message : "Invalid files",
+                    });
+                }
+
+                if (sanitized.files.length === 0) {
+                    throw new TRPCError({
+                        code: "BAD_REQUEST",
+                        message: "No files passed path sanitization",
+                    });
+                }
+
                 const octokit = new Octokit({
                     auth: ctx.session.accessToken,
                 });
 
-                // Create a new repository with auto-init
                 const repo = await octokit.rest.repos.createForAuthenticatedUser({
                     name: input.repoName,
                     description: input.description || `Generated project: ${project.name}`,
-                    private: false,
+                    private: input.isPrivate,
                     auto_init: true,
                 });
 
-                // Wait a moment for repository initialization
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
-                // Get the project files from the fragment
-                const files = latestFragment.files as Record<string, string>;
-                
-                // Create/update each file using the contents API
-                for (const [filePath, content] of Object.entries(files)) {
+                const fileErrors: { path: string; reason: string }[] = [];
+                for (const file of sanitized.files) {
                     try {
                         await octokit.rest.repos.createOrUpdateFileContents({
                             owner: repo.data.owner.login,
                             repo: repo.data.name,
-                            path: filePath,
-                            message: `Add ${filePath}`,
-                            content: Buffer.from(content).toString('base64'),
-                            branch: 'main',
+                            path: file.path,
+                            message: `Add ${file.path}`,
+                            content: Buffer.from(file.content, "utf8").toString("base64"),
+                            branch: "main",
                         });
                     } catch (error) {
-                        console.error(`Error creating file ${filePath}:`, error);
-                        // Continue with other files even if one fails
+                        fileErrors.push({
+                            path: file.path,
+                            reason: error instanceof Error ? error.message : "unknown",
+                        });
                     }
                 }
 
-                return { 
-                    success: true, 
+                return {
+                    success: true,
                     message: "Successfully created GitHub repository!",
                     repoUrl: repo.data.html_url,
-                    repoName: repo.data.full_name
+                    repoName: repo.data.full_name,
+                    rejected: sanitized.rejected,
+                    fileErrors,
                 };
-                
+
             } catch (error) {
+                if (error instanceof TRPCError) throw error;
                 console.error('GitHub repo creation error:', error);
-                throw new TRPCError({ 
-                    code: "INTERNAL_SERVER_ERROR", 
-                    message: `Failed to create GitHub repository: ${error instanceof Error ? error.message : 'Unknown error'}` 
+                throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: `Failed to create GitHub repository: ${error instanceof Error ? error.message : 'Unknown error'}`
                 });
             }
         }),

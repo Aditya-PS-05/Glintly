@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-label="Glintly">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 48" fill="none" role="img" aria-label="Glintly">
   <defs>
     <linearGradient id="glintly-grad" x1="24" y1="0" x2="24" y2="48" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#22D3EE"/>
@@ -13,4 +13,5 @@
   <path d="M24 0 C24 18 30 24 48 24 C30 24 24 30 24 48 C24 30 18 24 0 24 C18 24 24 18 24 0 Z" fill="url(#glintly-grad)"/>
   <circle cx="39" cy="9" r="6" fill="url(#glintly-halo)"/>
   <circle cx="39" cy="9" r="2.2" fill="#FBCFE8"/>
+  <text x="62" y="33" font-family="Inter, 'SF Pro Display', 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="30" font-weight="700" letter-spacing="-0.6" fill="currentColor">Glintly</text>
 </svg>

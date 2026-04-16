@@ -21,7 +21,7 @@ CREATE TABLE "User" (
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- Insert default user for existing projects
-INSERT INTO "User" ("id", "name", "email") VALUES ('default-user', 'Anonymous', 'anonymous@novacraft.dev');
+INSERT INTO "User" ("id", "name", "email") VALUES ('default-user', 'Anonymous', 'anonymous@glintly.dev');
 
 -- AlterTable
 ALTER TABLE "Project" ADD COLUMN "userId" TEXT NOT NULL DEFAULT 'default-user';

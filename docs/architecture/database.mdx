@@ -1,15 +1,15 @@
 ---
 title: 'Database Architecture'
-description: 'Database schema, models, and data management in NovaCraft'
+description: 'Database schema, models, and data management in Glintly'
 ---
 
 ## Overview
 
-NovaCraft uses PostgreSQL as its primary database with Prisma as the ORM. The database schema is designed to support real-time collaborative code generation, message history, and code fragment management.
+Glintly uses PostgreSQL as its primary database with Prisma as the ORM. The database schema is designed to support real-time collaborative code generation, message history, and code fragment management.
 
 ## Database Schema
 
-The core database schema consists of three main entities that work together to provide the NovaCraft experience:
+The core database schema consists of three main entities that work together to provide the Glintly experience:
 
 ### Core Models
 
@@ -445,18 +445,18 @@ DATABASE_URL="postgresql://user:password@host:5432/db?connection_limit=10&pool_t
 #!/bin/bash
 # Create daily backup
 DATE=$(date +%Y%m%d)
-pg_dump novacraft > backups/novacraft_$DATE.sql
+pg_dump glintly > backups/glintly_$DATE.sql
 
 # Compress backup
-gzip backups/novacraft_$DATE.sql
+gzip backups/glintly_$DATE.sql
 
 # Upload to cloud storage
-aws s3 cp backups/novacraft_$DATE.sql.gz s3://novacraft-backups/
+aws s3 cp backups/glintly_$DATE.sql.gz s3://glintly-backups/
 ```
 
 ```bash Recovery
 # Restore from backup
-psql novacraft < backups/novacraft_20231201.sql
+psql glintly < backups/glintly_20231201.sql
 
 # Verify data integrity
 pnpx prisma db pull

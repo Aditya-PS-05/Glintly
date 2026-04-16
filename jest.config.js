@@ -12,10 +12,6 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  testPathIgnorePatterns: [
-    '<rootDir>/.next/',
-    '<rootDir>/node_modules/',
-  ],
   transformIgnorePatterns: [
     'node_modules/(?!(jose|openid-client|oauth4webapi|preact-render-to-string|@trpc)/)',
   ],

@@ -5,7 +5,7 @@ description: 'Understanding E2B sandbox environments for code execution'
 
 ## What are Sandboxes?
 
-Sandboxes are isolated, secure environments where generated code is executed. NovaCraft uses [E2B](https://e2b.dev) sandboxes to provide safe, containerized environments for running user-generated code.
+Sandboxes are isolated, secure environments where generated code is executed. Glintly uses [E2B](https://e2b.dev) sandboxes to provide safe, containerized environments for running user-generated code.
 
 ## Sandbox Features
 
@@ -30,7 +30,7 @@ When a user sends a message, a new sandbox is created:
 
 ```typescript Sandbox Creation
 const sandboxId = await step.run("get-sandbox-id", async () => {
-  const sandbox = await Sandbox.create("novacraft-nextjs-test");
+  const sandbox = await Sandbox.create("glintly-nextjs");
   return sandbox.sandboxId;
 });
 ```
@@ -78,9 +78,9 @@ Sandboxes automatically cleanup after inactivity:
 
 ## Sandbox Templates
 
-### NovaCraft Template
+### Glintly Template
 
-The default template (`novacraft-nextjs-test`) includes:
+The default template (`glintly-nextjs`) includes:
 
 <CodeGroup>
 
@@ -391,7 +391,7 @@ e2b sandbox connect <sandbox-id>
 <CodeGroup>
 
 ```typescript Custom Ports
-const sandbox = await Sandbox.create("novacraft-nextjs-test", {
+const sandbox = await Sandbox.create("glintly-nextjs", {
   ports: [3000, 8080, 5432]
 });
 

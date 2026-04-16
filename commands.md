@@ -1,4 +1,4 @@
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 
 e2b sandbox list
 

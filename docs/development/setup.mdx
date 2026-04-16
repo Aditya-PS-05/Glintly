@@ -48,13 +48,13 @@ Before setting up the development environment, ensure you have the following ins
 <CodeGroup>
 
 ```bash HTTPS
-git clone https://github.com/your-username/novacraft.git
-cd novacraft
+git clone https://github.com/your-username/glintly.git
+cd glintly
 ```
 
 ```bash SSH
-git clone git@github.com:your-username/novacraft.git
-cd novacraft
+git clone git@github.com:your-username/glintly.git
+cd glintly
 ```
 
 </CodeGroup>
@@ -95,7 +95,7 @@ Configure your `.env.local` file:
 
 ```env .env.local
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/novacraft"
+DATABASE_URL="postgresql://username:password@localhost:5432/glintly"
 
 # OpenAI
 OPENAI_API_KEY="sk-your-openai-api-key"
@@ -124,13 +124,13 @@ NODE_ENV="development"
 <CodeGroup>
 
 ```bash Local PostgreSQL
-createdb novacraft
+createdb glintly
 ```
 
 ```bash Docker
-docker run --name novacraft-db \
+docker run --name glintly-db \
   -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=novacraft \
+  -e POSTGRES_DB=glintly \
   -p 5432:5432 \
   -d postgres:15
 ```
@@ -207,7 +207,7 @@ e2b auth login
 <CodeGroup>
 
 ```bash Terminal
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 ```
 
 </CodeGroup>
@@ -424,7 +424,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:password@db:5432/novacraft
+      - DATABASE_URL=postgresql://postgres:password@db:5432/glintly
     volumes:
       - .:/app
       - /app/node_modules
@@ -435,7 +435,7 @@ services:
     image: postgres:15
     environment:
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=novacraft
+      - POSTGRES_DB=glintly
     ports:
       - "5432:5432"
     volumes:
@@ -495,7 +495,7 @@ docker-compose -f docker-compose.dev.yml up
     pg_ctl start
     
     # Test connection
-    psql -h localhost -U username -d novacraft
+    psql -h localhost -U username -d glintly
     ```
   </Accordion>
   

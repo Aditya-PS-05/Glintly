@@ -5,7 +5,7 @@ description: 'AI agent system powered by Inngest and OpenAI for code generation 
 
 ## Overview
 
-NovaCraft's agent system is the core of the AI-powered code generation platform. Built on Inngest for reliable background job processing and OpenAI's GPT-4 for intelligent code generation, the system provides secure, scalable, and intelligent code creation capabilities.
+Glintly's agent system is the core of the AI-powered code generation platform. Built on Inngest for reliable background job processing and OpenAI's GPT-4 for intelligent code generation, the system provides secure, scalable, and intelligent code creation capabilities.
 
 ## Agent Architecture
 
@@ -313,7 +313,7 @@ The agent has access to three main tools for code generation and execution:
 ```typescript Sandbox Creation
 async function createSandbox(projectId: string) {
   const sandbox = await Sandbox.create({
-    template: "novacraft-nextjs-test",
+    template: "glintly-nextjs",
     metadata: {
       projectId,
       createdAt: new Date().toISOString()
@@ -602,7 +602,7 @@ OPENAI_TEMPERATURE=0.1
 
 # E2B Configuration
 E2B_API_KEY=your-e2b-api-key
-E2B_TEMPLATE=novacraft-nextjs-test
+E2B_TEMPLATE=glintly-nextjs
 E2B_TIMEOUT=300000  # 5 minutes
 
 # Inngest Configuration

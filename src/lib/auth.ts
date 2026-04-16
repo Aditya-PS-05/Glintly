@@ -52,7 +52,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: "read:user user:email repo",
+          scope: "read:user user:email public_repo",
         },
       },
     }),
@@ -64,6 +64,30 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
   },
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "credentials") return true;
+      if (!user.email) return false;
+
+      try {
+        const dbUser = await prisma.user.upsert({
+          where: { email: user.email },
+          update: {
+            name: user.name ?? undefined,
+            image: user.image ?? undefined,
+          },
+          create: {
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          },
+        });
+        user.id = dbUser.id;
+        return true;
+      } catch (error) {
+        console.error("Error upserting OAuth user:", error);
+        return false;
+      }
+    },
     async jwt({ token, user, account }) {
       if (user) {
         token.sub = user.id;
@@ -79,30 +103,6 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub;
         session.accessToken = token.accessToken;
         session.provider = token.provider;
-        
-        // Ensure user exists in database for OAuth providers
-        if (session.user.email) {
-          try {
-            const existingUser = await prisma.user.findUnique({
-              where: { email: session.user.email }
-            });
-            
-            if (!existingUser) {
-              const newUser = await prisma.user.create({
-                data: {
-                  email: session.user.email,
-                  name: session.user.name,
-                  image: session.user.image,
-                }
-              });
-              session.user.id = newUser.id;
-            } else {
-              session.user.id = existingUser.id;
-            }
-          } catch (error) {
-            console.error('Error ensuring user exists:', error);
-          }
-        }
       }
       return session;
     },

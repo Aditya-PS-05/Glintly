@@ -1,6 +1,6 @@
 ---
 title: 'Installation'
-description: 'Complete installation guide for NovaCraft'
+description: 'Complete installation guide for Glintly'
 ---
 
 ## System Requirements
@@ -12,7 +12,7 @@ description: 'Complete installation guide for NovaCraft'
 
 ## Required Services
 
-Before installing NovaCraft, you'll need accounts and API keys for:
+Before installing Glintly, you'll need accounts and API keys for:
 
 ### E2B (Code Execution)
 1. Sign up at [e2b.dev](https://e2b.dev)
@@ -35,13 +35,13 @@ Before installing NovaCraft, you'll need accounts and API keys for:
 <CodeGroup>
 
 ```bash HTTPS
-git clone https://github.com/your-username/novacraft.git
-cd novacraft
+git clone https://github.com/your-username/glintly.git
+cd glintly
 ```
 
 ```bash SSH
-git clone git@github.com:your-username/novacraft.git
-cd novacraft
+git clone git@github.com:your-username/glintly.git
+cd glintly
 ```
 
 </CodeGroup>
@@ -72,7 +72,7 @@ Configure your `.env.local` file:
 
 ```env .env.local
 # Database
-DATABASE_URL="postgresql://username:password@localhost:5432/novacraft"
+DATABASE_URL="postgresql://username:password@localhost:5432/glintly"
 
 # OpenAI
 OPENAI_API_KEY="sk-..."
@@ -96,11 +96,11 @@ Create your PostgreSQL database:
 <CodeGroup>
 
 ```bash Local PostgreSQL
-createdb novacraft
+createdb glintly
 ```
 
 ```bash Docker
-docker run --name novacraft-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=novacraft -p 5432:5432 -d postgres:15
+docker run --name glintly-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=glintly -p 5432:5432 -d postgres:15
 ```
 
 </CodeGroup>
@@ -118,7 +118,7 @@ Build the E2B template for code execution:
 
 ```bash
 e2b auth login
-e2b template build --name novacraft-nextjs-test --cmd "/compile_page.sh"
+e2b template build --name glintly-nextjs --cmd "/compile_page.sh"
 ```
 
 ### 6. Verify Installation
@@ -237,7 +237,7 @@ pnpm dlx inngest-cli@latest dev --verbose
 
 ## Next Steps
 
-Now that you have NovaCraft installed:
+Now that you have Glintly installed:
 
 1. [Create your first project](/quickstart#step-5-create-your-first-project)
 2. [Learn about core concepts](/concepts/projects)

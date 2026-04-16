@@ -1,34 +1,78 @@
 import { inngest } from "./client";
-import { anthropic, createAgent, createNetwork, createTool, openai, Tool } from "@inngest/agent-kit";
-import {Sandbox} from "@e2b/code-interpreter"
+import { createAgent, createNetwork, createTool, openai, Tool } from "@inngest/agent-kit";
+import { Sandbox } from "@e2b/code-interpreter";
 import { getSandbox, lastAssistantTextMessageContent } from "./utils";
 import { z } from "zod";
-import { PROMPT } from "@/prompt";
+import { WEB_PROMPT, MOBILE_PROMPT } from "@/prompt";
 import prisma from "@/lib/prisma";
 import { checkCommand } from "@/lib/sandbox-command-guard";
 
 const MAX_AGENT_ITERATIONS = 15;
 const SANDBOX_COMMAND_TIMEOUT_MS = 60_000;
+const EXPO_URL_WAIT_TIMEOUT_MS = 120_000;
+const EXPO_URL_POLL_MS = 2_000;
+
+const TEMPLATES = {
+  WEB: {
+    name: "glintly-nextjs",
+    previewPort: 3000,
+    prompt: WEB_PROMPT,
+    description: "You are an expert next.js developer",
+  },
+  MOBILE: {
+    name: "glintly-expo",
+    previewPort: 19006,
+    prompt: MOBILE_PROMPT,
+    description: "You are an expert React Native + Expo developer",
+  },
+} as const;
+
+type ProjectType = keyof typeof TEMPLATES;
 
 interface AgentState {
   summary: string;
   files: {[path: string]: string};
 }
 
+function resolveProjectType(raw: unknown): ProjectType {
+  return raw === "MOBILE" ? "MOBILE" : "WEB";
+}
+
+async function readExpoTunnelUrl(
+  sandbox: Awaited<ReturnType<typeof getSandbox>>,
+): Promise<string | null> {
+  const deadline = Date.now() + EXPO_URL_WAIT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const raw = await sandbox.files.read("/tmp/expo-urls.json");
+      if (raw) {
+        const parsed = JSON.parse(raw) as { expoUrl?: string };
+        if (parsed?.expoUrl) return parsed.expoUrl;
+      }
+    } catch {
+      // File not written yet; tunnel still coming up.
+    }
+    await new Promise((r) => setTimeout(r, EXPO_URL_POLL_MS));
+  }
+  return null;
+}
+
 export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
+    const projectType = resolveProjectType(event.data.projectType);
+    const template = TEMPLATES[projectType];
 
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create("glintly-nextjs")
+      const sandbox = await Sandbox.create(template.name);
       return sandbox.sandboxId;
     })
 
     const codeAgent = createAgent<AgentState>({
       name: "codeAgent",
-      description: "You are an expert next.js developer",
-      system: PROMPT,
+      description: template.description,
+      system: template.prompt,
       model: openai({ model: "gpt-4" }),
       tools: [
         createTool({
@@ -163,10 +207,18 @@ export const codeAgentFunction = inngest.createFunction(
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
-      const host= sandbox.getHost(3000);
+      const host = sandbox.getHost(template.previewPort);
 
       return `https://${host}`;
     })
+
+    const expoUrl =
+      projectType === "MOBILE"
+        ? await step.run("get-expo-tunnel-url", async () => {
+            const sandbox = await getSandbox(sandboxId);
+            return await readExpoTunnelUrl(sandbox);
+          })
+        : null;
 
     await step?.run("save-result", async () => {
       if (!hasSummary) {
@@ -191,6 +243,8 @@ export const codeAgentFunction = inngest.createFunction(
                 sandboxUrl: sandboxUrl,
                 title: "Fragment",
                 files: result.state.data.files,
+                type: projectType,
+                expoUrl: expoUrl,
               },
             },
           }),
@@ -199,10 +253,12 @@ export const codeAgentFunction = inngest.createFunction(
     })
 
     return {
-      url:sandboxUrl,
+      url: sandboxUrl,
       title: "Fragment",
       files: result.state.data.files,
-      summary: result.state.data.summary
+      summary: result.state.data.summary,
+      projectType,
+      expoUrl,
     }
   },
 );

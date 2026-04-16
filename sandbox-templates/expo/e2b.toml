@@ -1,0 +1,11 @@
+# E2B sandbox template config for Glintly's mobile (React Native + Expo) projects.
+#
+# Build:  e2b template build --name glintly-expo --cmd "/compile_page.sh"
+#
+# JS SDK:
+#   import { Sandbox } from 'e2b'
+#   const sandbox = await Sandbox.create('glintly-expo')
+
+start_cmd = "/compile_page.sh"
+dockerfile = "e2b.Dockerfile"
+template_name = "glintly-expo"

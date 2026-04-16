@@ -19,6 +19,7 @@ const formSchema = z.object({
     value: z.string()
         .min(1, { message: "value is required" })
         .max(10000, { message: "value is too long" }),
+    type: z.enum(["WEB", "MOBILE"]),
 })
 
 const ProjectForm = () => {
@@ -30,6 +31,7 @@ const ProjectForm = () => {
         resolver: zodResolver(formSchema),
         defaultValues: {
             value: "",
+            type: "WEB",
         }
     })
 
@@ -48,8 +50,11 @@ const ProjectForm = () => {
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         await createProject.mutateAsync({
             value: values.value,
+            type: values.type,
         })
     }
+
+    const selectedType = form.watch("type");
 
     const onSelect = (value: string) => {
         form.setValue("value", value, {
@@ -70,10 +75,28 @@ const ProjectForm = () => {
                 <form
                     onSubmit={form.handleSubmit(onSubmit)}
                     className={cn(
-                        "relative border p-4 pt-1 rounded-xl bg-sidebar dark:bg-siderbar transition-all",
+                        "relative border p-4 pt-3 rounded-xl bg-sidebar dark:bg-siderbar transition-all",
                         isFocused && "shadow-xs",
                     )}
                 >
+                    <div className="flex items-center gap-1 pb-2">
+                        {(["WEB", "MOBILE"] as const).map((t) => (
+                            <button
+                                key={t}
+                                type="button"
+                                onClick={() => form.setValue("type", t, { shouldDirty: true })}
+                                aria-pressed={selectedType === t}
+                                className={cn(
+                                    "px-3 py-1 text-xs rounded-md border transition-colors",
+                                    selectedType === t
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/70",
+                                )}
+                            >
+                                {t === "WEB" ? "🌐 Web" : "📱 Mobile"}
+                            </button>
+                        ))}
+                    </div>
                     <FormField
                         control={form.control}
                         name="value"
@@ -86,7 +109,11 @@ const ProjectForm = () => {
                                 minRows={2}
                                 maxRows={8}
                                 className="pt-4 resize-none border-none w-full outline-none bg-transparent"
-                                placeholder="What would you like to build?"
+                                placeholder={
+                                    selectedType === "MOBILE"
+                                        ? "Describe the mobile app you want to build…"
+                                        : "What would you like to build?"
+                                }
                                 onKeyDown={(e: any) => {
                                     if (e.key === "Enter" && (e.ctrlkey || e.metakey)) {
                                         e.preventDefault();

@@ -51,7 +51,8 @@ export const projectsRouter = createTRPCRouter({
             z.object({
                 value: z.string()
                     .min(1, { message: "Prompt is required" })
-                    .max(10000, { message: "Prompt is too long" })
+                    .max(10000, { message: "Prompt is too long" }),
+                type: z.enum(["WEB", "MOBILE"]).optional().default("WEB"),
             }),
         )
 
@@ -72,6 +73,7 @@ export const projectsRouter = createTRPCRouter({
                     name: generateSlug(2, {
                         format: "kebab"
                     }),
+                    type: input.type,
                     userId: ctx.user.id,
                     messages: {
                         create: {
@@ -88,6 +90,7 @@ export const projectsRouter = createTRPCRouter({
                 data: {
                     value: input.value,
                     projectId: createdProject.id,
+                    projectType: input.type,
                 }
             })
 

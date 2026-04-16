@@ -1,12 +1,21 @@
 import { PrismaClient } from '../generated/prisma'
 import { withAccelerate } from '@prisma/extension-accelerate'
 
-const globalForPrisma = global as unknown as { 
-    prisma: PrismaClient
+const globalForPrisma = globalThis as unknown as {
+    prisma?: PrismaClient
 }
 
-const prisma = globalForPrisma.prisma || new PrismaClient().$extends(withAccelerate())
+function getClient(): PrismaClient {
+    if (!globalForPrisma.prisma) {
+        globalForPrisma.prisma = new PrismaClient().$extends(withAccelerate()) as unknown as PrismaClient
+    }
+    return globalForPrisma.prisma
+}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+const prisma = new Proxy({} as PrismaClient, {
+    get(_target, prop, receiver) {
+        return Reflect.get(getClient(), prop, receiver)
+    },
+}) as PrismaClient
 
 export default prisma

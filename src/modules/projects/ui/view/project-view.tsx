@@ -2,12 +2,13 @@
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { MessagesContainer } from "../components/messages-container";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Fragment } from "@/generated/prisma";
 import ProjectHeader from "../components/project-header";
 import FragmentWeb from "../components/fragment-web";
+import { FragmentMobile } from "../components/fragment-mobile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodeIcon, CrownIcon, EyeIcon } from "lucide-react";
+import { CodeIcon, CrownIcon, EyeIcon, SmartphoneIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { FileExplorer } from "@/components/file-explorer";
@@ -17,10 +18,21 @@ interface Props {
     projectId: string
 }
 
-export const ProjectView =({projectId}: Props) => {
-    const [activeFragment, setActiveFragment] = useState<Fragment | null>(null);
+type TabValue = "preview" | "device" | "code";
 
-    const [tabState, setTabState] = useState<"preview" | "code">("preview");
+export const ProjectView = ({ projectId }: Props) => {
+    const [activeFragment, setActiveFragment] = useState<Fragment | null>(null);
+    const [tabState, setTabState] = useState<TabValue>("preview");
+
+    const isMobile = (activeFragment as Fragment | null)?.type === "MOBILE";
+    const expoUrl = (activeFragment as (Fragment & { expoUrl?: string | null }) | null)?.expoUrl ?? null;
+
+    const availableTabs = useMemo<TabValue[]>(
+        () => (isMobile ? ["preview", "device", "code"] : ["preview", "code"]),
+        [isMobile],
+    );
+
+    const effectiveTab: TabValue = availableTabs.includes(tabState) ? tabState : "preview";
 
     return (
         <div className="h-screen">
@@ -34,11 +46,11 @@ export const ProjectView =({projectId}: Props) => {
                         <ProjectHeader projectId={projectId} />
                     </Suspense>
                     <Suspense fallback={<p>Loading Message...</p>}>
-                        <MessagesContainer 
+                        <MessagesContainer
                             projectId={projectId}
                             activeFragment={activeFragment}
                             setActiveFragment={setActiveFragment}
-                            />
+                        />
                     </Suspense>
                 </ResizablePanel>
                 <ResizableHandle className="hover:bg-primary transition-colors" />
@@ -49,16 +61,19 @@ export const ProjectView =({projectId}: Props) => {
                     <Tabs
                         className="h-full gap-y-0"
                         defaultValue="preview"
-                        value={tabState}
-                        onValueChange={(value) => setTabState(value as "preview" | "code")}
-
+                        value={effectiveTab}
+                        onValueChange={(value) => setTabState(value as TabValue)}
                     >
                         <div className="w-full flex items-center p-2 border-b gap-x-2">
                             <TabsList className="h-8 p-0 border rounded-md">
                                 <TabsTrigger value="preview" className="rounded-md">
                                     <EyeIcon /> <span>Demo</span>
                                 </TabsTrigger>
-
+                                {isMobile && (
+                                    <TabsTrigger value="device" className="rounded-md">
+                                        <SmartphoneIcon /> <span>Device</span>
+                                    </TabsTrigger>
+                                )}
                                 <TabsTrigger value="code" className="rounded-md">
                                     <CodeIcon /> <span>Code</span>
                                 </TabsTrigger>
@@ -75,10 +90,19 @@ export const ProjectView =({projectId}: Props) => {
                         <TabsContent value="preview">
                             {!!activeFragment && <FragmentWeb data={activeFragment} />}
                         </TabsContent>
+                        {isMobile && (
+                            <TabsContent value="device" className="min-h-0">
+                                {!!activeFragment && (
+                                    <FragmentMobile
+                                        expoUrl={expoUrl}
+                                        webPreviewUrl={activeFragment.sandboxUrl}
+                                    />
+                                )}
+                            </TabsContent>
+                        )}
                         <TabsContent value="code" className="min-h-0">
                             {!!activeFragment?.files && (
-                                <FileExplorer files={activeFragment?.files as {[path: string]: string}}
-                                />
+                                <FileExplorer files={activeFragment?.files as { [path: string]: string }} />
                             )}
                         </TabsContent>
                     </Tabs>

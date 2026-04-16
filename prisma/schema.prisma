@@ -61,9 +61,15 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+enum ProjectType {
+  WEB
+  MOBILE
+}
+
 model Project {
   id String @id @default(uuid())
   name String
+  type ProjectType @default(WEB)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -106,6 +112,8 @@ model Fragment {
   sandboxUrl String
   title String
   files Json
+  type ProjectType @default(WEB)
+  expoUrl String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

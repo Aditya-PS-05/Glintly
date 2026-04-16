@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GithubIcon, ChromeIcon, KeyIcon } from "lucide-react";
+import { GithubIcon, ChromeIcon, KeyIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 const PROVIDER_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -27,6 +28,7 @@ const SettingsPage = () => {
 
     const connectionsQuery = useQuery(trpc.auth.getConnections.queryOptions());
     const usageQuery = useQuery(trpc.auth.getUsage.queryOptions());
+    const subscriptionQuery = useQuery(trpc.billing.getSubscription.queryOptions());
 
     const disconnect = useMutation(
         trpc.auth.disconnect.mutationOptions({
@@ -38,8 +40,21 @@ const SettingsPage = () => {
         }),
     );
 
+    const cancelSubscription = useMutation(
+        trpc.billing.cancelSubscription.mutationOptions({
+            onSuccess: () => {
+                queryClient.invalidateQueries(trpc.billing.getSubscription.queryOptions());
+                queryClient.invalidateQueries(trpc.auth.getUsage.queryOptions());
+                toast.success("Subscription will cancel at period end.");
+            },
+            onError: (error) => toast.error(error.message),
+        }),
+    );
+
     const connections = connectionsQuery.data ?? [];
     const usage = usageQuery.data;
+    const subscription = subscriptionQuery.data?.subscription;
+    const planTier = subscriptionQuery.data?.planTier ?? "FREE";
 
     return (
         <div className="flex flex-col max-w-3xl mx-auto w-full py-10 gap-8">
@@ -49,6 +64,70 @@ const SettingsPage = () => {
                     Manage your connected accounts and view your usage.
                 </p>
             </header>
+
+            <section className="rounded-2xl border bg-sidebar p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-semibold">Billing</h2>
+                        <p className="text-xs text-muted-foreground">
+                            Manage your subscription and plan tier.
+                        </p>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                        <Link href="/pricing">View plans</Link>
+                    </Button>
+                </div>
+                {subscriptionQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                ) : (
+                    <div className="space-y-3">
+                        <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <dt className="text-xs uppercase text-muted-foreground">Plan</dt>
+                                <dd className="font-semibold">{planTier}</dd>
+                            </div>
+                            {subscription && (
+                                <>
+                                    <div>
+                                        <dt className="text-xs uppercase text-muted-foreground">Status</dt>
+                                        <dd className="font-semibold">{subscription.status}</dd>
+                                    </div>
+                                    {subscription.currentEnd && (
+                                        <div>
+                                            <dt className="text-xs uppercase text-muted-foreground">
+                                                {subscription.cancelAtPeriodEnd ? "Ends" : "Renews"}
+                                            </dt>
+                                            <dd className="font-semibold">
+                                                {new Date(subscription.currentEnd).toLocaleDateString()}
+                                            </dd>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </dl>
+                        {subscription && !subscription.cancelAtPeriodEnd && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={cancelSubscription.isPending}
+                                onClick={() => {
+                                    if (confirm("Cancel your subscription at the end of the current period?")) {
+                                        cancelSubscription.mutate();
+                                    }
+                                }}
+                            >
+                                {cancelSubscription.isPending && <Loader2Icon className="size-4 mr-2 animate-spin" />}
+                                Cancel subscription
+                            </Button>
+                        )}
+                        {subscription?.cancelAtPeriodEnd && (
+                            <p className="text-xs text-muted-foreground">
+                                Your subscription will not renew. Access continues until the period ends.
+                            </p>
+                        )}
+                    </div>
+                )}
+            </section>
 
             <section className="rounded-2xl border bg-sidebar p-6 space-y-4">
                 <div>

@@ -7,9 +7,15 @@ import { TRPCError } from "@trpc/server";
 import { Octokit } from "@octokit/rest";
 import { sanitizeFilesForGitHub } from "@/lib/sanitize-paths";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getPlan } from "@/lib/billing/plans";
 
-const CREATE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 };
-const PUSH_LIMIT = { limit: 5, windowMs: 60 * 60 * 1000 };
+async function getUserPlan(userId: string) {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { planTier: true },
+    });
+    return getPlan(user?.planTier);
+}
 
 export const projectsRouter = createTRPCRouter({
 
@@ -92,15 +98,39 @@ export const projectsRouter = createTRPCRouter({
         )
 
         .mutation(async ({ input, ctx }) => {
-            const rl = await checkRateLimit({
+            const plan = await getUserPlan(ctx.user.id);
+
+            if (input.type === "MOBILE" && !plan.allowMobile) {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message: "Mobile apps are a Pro feature. Upgrade at /pricing.",
+                });
+            }
+
+            const hourly = await checkRateLimit({
                 key: `project-create:${ctx.user.id}`,
-                ...CREATE_LIMIT,
+                limit: plan.hourlyGenerations,
+                windowMs: 60 * 60 * 1000,
             });
-            if (!rl.allowed) {
+            if (!hourly.allowed) {
                 throw new TRPCError({
                     code: "TOO_MANY_REQUESTS",
-                    message: "Rate limit exceeded. Try again later.",
+                    message: "Hourly generation limit reached. Try again later.",
                 });
+            }
+
+            if (plan.dailyGenerations != null) {
+                const startOfDay = new Date();
+                startOfDay.setUTCHours(0, 0, 0, 0);
+                const dailyCount = await prisma.project.count({
+                    where: { userId: ctx.user.id, createdAt: { gte: startOfDay } },
+                });
+                if (dailyCount >= plan.dailyGenerations) {
+                    throw new TRPCError({
+                        code: "TOO_MANY_REQUESTS",
+                        message: `Daily limit of ${plan.dailyGenerations} generations reached on the ${plan.label} plan. Upgrade at /pricing.`,
+                    });
+                }
             }
 
             const createdProject = await prisma.project.create({
@@ -148,9 +178,19 @@ export const projectsRouter = createTRPCRouter({
             })
         )
         .mutation(async ({ input, ctx }) => {
+            const plan = await getUserPlan(ctx.user.id);
+
+            if (input.isPrivate && !plan.allowPrivateRepo) {
+                throw new TRPCError({
+                    code: "FORBIDDEN",
+                    message: "Private repositories require a Pro plan. Upgrade at /pricing.",
+                });
+            }
+
             const rl = await checkRateLimit({
                 key: `gh-push:${ctx.user.id}`,
-                ...PUSH_LIMIT,
+                limit: plan.hourlyGithubPushes,
+                windowMs: 60 * 60 * 1000,
             });
             if (!rl.allowed) {
                 throw new TRPCError({
